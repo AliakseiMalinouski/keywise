@@ -13,7 +13,7 @@ describe('GgDealsClient', () => {
     const findSteamAppId = vi.fn();
     const client = createClient({ apiKey: '', findSteamAppId });
 
-    await expect(client.search('elden ring')).resolves.toEqual([]);
+    await expect(client.search('elden ring', { region: 'pl' })).resolves.toEqual([]);
     expect(findSteamAppId).not.toHaveBeenCalled();
   });
 
@@ -22,7 +22,9 @@ describe('GgDealsClient', () => {
       findSteamAppId: vi.fn(async () => null),
     });
 
-    await expect(client.search('unknown game')).resolves.toEqual([]);
+    await expect(client.search('unknown game', { region: 'pl' })).resolves.toEqual(
+      [],
+    );
   });
 
   it('maps retail and keyshop lows for the resolved Steam app', async () => {
@@ -55,7 +57,7 @@ describe('GgDealsClient', () => {
       findSteamAppId: vi.fn(async () => '1245620'),
     });
 
-    await expect(client.search('elden ring')).resolves.toEqual([
+    await expect(client.search('elden ring', { region: 'pl' })).resolves.toEqual([
       {
         source: 'GG.deals retail',
         title: 'ELDEN RING',
@@ -98,9 +100,17 @@ describe('GgDealsClient', () => {
       findSteamAppId: vi.fn(async () => '1245620'),
     });
 
-    const offers = await client.search('elden ring');
+    const offers = await client.search('elden ring', { region: 'us' });
 
-    expect(offers.map((offer) => offer.source)).toEqual(['GG.deals retail']);
+    expect(offers).toEqual([
+      {
+        source: 'GG.deals retail',
+        title: 'ELDEN RING',
+        url: 'https://gg.deals/game/elden-ring/',
+        region: 'us',
+        price: { amount: 249, currency: 'PLN' },
+      },
+    ]);
   });
 });
 

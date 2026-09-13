@@ -16,7 +16,11 @@ export type SourceResult<T = Offer[]> = {
   data: T;
 };
 
+export type SearchOptions = {
+  region: string;
+};
+
 export interface MarketplaceClient {
   readonly source: string;
-  search(query: string): Promise<Offer[]>;
+  search(query: string, options: SearchOptions): Promise<Offer[]>;
 }

@@ -34,7 +34,7 @@ describe('SearchService', () => {
   it('returns a result per source', async () => {
     const service = await createService();
 
-    await expect(service.search('elden ring')).resolves.toEqual(cachedResult);
+    await expect(service.search('elden ring', 'pl')).resolves.toEqual(cachedResult);
   });
 
   it('keeps a source with empty data when it fails', async () => {
@@ -44,7 +44,7 @@ describe('SearchService', () => {
       },
     });
 
-    await expect(service.search('elden ring')).resolves.toEqual([
+    await expect(service.search('elden ring', 'pl')).resolves.toEqual([
       { source: 'cheapshark', data: [] },
       { source: 'gg.deals', data: [ggDealsOffer] },
     ]);
@@ -55,11 +55,12 @@ describe('SearchService', () => {
     const ggdealsSearch = vi.fn(async () => [ggDealsOffer]);
     const service = await createService({ cheapsharkSearch, ggdealsSearch });
 
-    await service.search('Elden Ring');
-    await service.search('elden ring');
+    await service.search('Elden Ring', 'pl');
+    await service.search('elden ring', 'pl');
 
     expect(cheapsharkSearch).toHaveBeenCalledTimes(1);
     expect(ggdealsSearch).toHaveBeenCalledTimes(1);
+    expect(ggdealsSearch).toHaveBeenCalledWith('Elden Ring', { region: 'pl' });
   });
 
   it('shares one inflight request for the same query', async () => {
@@ -73,8 +74,8 @@ describe('SearchService', () => {
     const ggdealsSearch = vi.fn(async () => [ggDealsOffer]);
     const service = await createService({ cheapsharkSearch, ggdealsSearch });
 
-    const first = service.search('elden ring');
-    const second = service.search('elden ring');
+    const first = service.search('elden ring', 'pl');
+    const second = service.search('elden ring', 'pl');
 
     finish([steamOffer]);
     await expect(Promise.all([first, second])).resolves.toEqual([
@@ -92,12 +93,24 @@ describe('SearchService', () => {
     const ggdealsSearch = vi.fn(async () => [ggDealsOffer]);
     const service = await createService({ cheapsharkSearch, ggdealsSearch });
 
-    await service.search('elden ring');
+    await service.search('elden ring', 'pl');
     vi.setSystemTime(new Date('2026-09-13T18:05:01.000Z'));
-    await service.search('elden ring');
+    await service.search('elden ring', 'pl');
 
     expect(cheapsharkSearch).toHaveBeenCalledTimes(2);
     expect(ggdealsSearch).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not reuse cache for the same query in another region', async () => {
+    const cheapsharkSearch = vi.fn(async () => [steamOffer]);
+    const ggdealsSearch = vi.fn(async () => [ggDealsOffer]);
+    const service = await createService({ cheapsharkSearch, ggdealsSearch });
+
+    await service.search('elden ring', 'pl');
+    await service.search('elden ring', 'us');
+
+    expect(cheapsharkSearch).toHaveBeenCalledTimes(2);
+    expect(ggdealsSearch).toHaveBeenCalledWith('elden ring', { region: 'us' });
   });
 });
 

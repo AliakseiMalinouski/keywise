@@ -1,13 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
-import type { MarketplaceClient, Offer } from '../types.js';
+import { DEFAULT_SEARCH_REGION } from '../regions.js';
+import type { MarketplaceClient, Offer, SearchOptions } from '../types.js';
 import { parseAmount } from '../utils/parse-price.js';
 import { CheapSharkClient } from './cheapshark.client.js';
 
 const GGDEALS_PRICES_URL = 'https://api.gg.deals/v1/prices/by-steam-app-id/';
 const USER_AGENT = 'keywise/0.0.1 (https://github.com/AliakseiMalinouski/keywise)';
-const DEFAULT_REGION = 'pl';
 
 type GgDealsPrices = {
   currentRetail?: string | null;
@@ -36,7 +36,7 @@ export class GgDealsClient implements MarketplaceClient {
     private readonly cheapshark: CheapSharkClient,
   ) {}
 
-  async search(query: string): Promise<Offer[]> {
+  async search(query: string, options: SearchOptions): Promise<Offer[]> {
     const apiKey = this.config.get<string>('GGDEALS_API_KEY')?.trim();
     if (!apiKey) {
       this.logger.warn('GGDEALS_API_KEY is not set');
@@ -49,7 +49,10 @@ export class GgDealsClient implements MarketplaceClient {
         return [];
       }
 
-      const region = this.config.get<string>('GGDEALS_REGION')?.trim() || DEFAULT_REGION;
+      const region =
+        options.region ||
+        this.config.get<string>('GGDEALS_REGION')?.trim() ||
+        DEFAULT_SEARCH_REGION;
       const url = new URL(GGDEALS_PRICES_URL);
       url.searchParams.set('key', apiKey);
       url.searchParams.set('ids', steamAppId);

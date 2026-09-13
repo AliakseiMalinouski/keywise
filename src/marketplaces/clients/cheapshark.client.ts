@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import type { MarketplaceClient, Offer } from '../types.js';
+import type { MarketplaceClient, Offer, SearchOptions } from '../types.js';
 import { normalizeTitle, titleMatchesQuery } from '../utils/match-title.js';
 
 const CHEAPSHARK_API = 'https://www.cheapshark.com/api/1.0';
@@ -48,7 +48,7 @@ export class CheapSharkClient implements MarketplaceClient {
     return steamAppId && steamAppId !== '0' ? steamAppId : null;
   }
 
-  async search(query: string): Promise<Offer[]> {
+  async search(query: string, _options: SearchOptions = { region: 'pl' }): Promise<Offer[]> {
     try {
       const game = await this.findBestGame(query);
       if (!game) {

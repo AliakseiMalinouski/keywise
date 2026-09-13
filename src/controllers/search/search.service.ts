@@ -22,8 +22,8 @@ export class SearchService {
     this.clients = [cheapshark, ggdeals];
   }
 
-  async search(query: string): Promise<SourceResult[]> {
-    const key = query.trim().toLowerCase();
+  async search(query: string, region: string): Promise<SourceResult[]> {
+    const key = `${query.trim().toLowerCase()}|${region}`;
     const cached = this.cache.get(key);
 
     if (cached && cached.expiresAt > Date.now()) {
@@ -35,7 +35,7 @@ export class SearchService {
       return pending;
     }
 
-    const request = this.fetchSources(query)
+    const request = this.fetchSources(query, region)
       .then((data) => {
         this.cache.set(key, {
           expiresAt: Date.now() + SEARCH_CACHE_TTL_MS,
@@ -51,9 +51,12 @@ export class SearchService {
     return request;
   }
 
-  private async fetchSources(query: string): Promise<SourceResult[]> {
+  private async fetchSources(
+    query: string,
+    region: string,
+  ): Promise<SourceResult[]> {
     const results = await Promise.allSettled(
-      this.clients.map((client) => client.search(query)),
+      this.clients.map((client) => client.search(query, { region })),
     );
 
     return results.map((result, index) => {
