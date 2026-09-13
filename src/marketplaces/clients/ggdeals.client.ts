@@ -1,10 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { Injectable, Logger } from '@nestjs/common';
 
 import { DEFAULT_SEARCH_REGION } from '../regions.js';
-import type { MarketplaceClient, Offer, SearchOptions } from '../types.js';
 import { parseAmount } from '../utils/parse-price.js';
 import { CheapSharkClient } from './cheapshark.client.js';
+import type { MarketplaceClient, Offer, SearchOptions } from '../types.js';
 
 const GGDEALS_PRICES_URL = 'https://api.gg.deals/v1/prices/by-steam-app-id/';
 const USER_AGENT = 'keywise/0.0.1 (https://github.com/AliakseiMalinouski/keywise)';

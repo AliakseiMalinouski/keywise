@@ -1,11 +1,11 @@
 import { Test } from '@nestjs/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CheapSharkClient } from '../../marketplaces/clients/cheapshark.client.js';
-import { GgDealsClient } from '../../marketplaces/clients/ggdeals.client.js';
-import { ItadClient } from '../../marketplaces/clients/itad.client.js';
-import type { Offer } from '../../marketplaces/types.js';
 import { SearchService } from './search.service.js';
+import type { Offer } from '../../marketplaces/types.js';
+import { ItadClient } from '../../marketplaces/clients/itad.client.js';
+import { GgDealsClient } from '../../marketplaces/clients/ggdeals.client.js';
+import { CheapSharkClient } from '../../marketplaces/clients/cheapshark.client.js';
 
 const steamOffer: Offer = {
   source: 'Steam',
