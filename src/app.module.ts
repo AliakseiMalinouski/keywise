@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 
 import { SearchController, SearchService } from './controllers/search/index.js';
 import { CheapSharkClient } from './marketplaces/clients/cheapshark.client.js';
+import { GgDealsClient } from './marketplaces/clients/ggdeals.client.js';
 
 @Module({
   imports: [
@@ -12,6 +13,6 @@ import { CheapSharkClient } from './marketplaces/clients/cheapshark.client.js';
     }),
   ],
   controllers: [SearchController],
-  providers: [CheapSharkClient, SearchService],
+  providers: [CheapSharkClient, GgDealsClient, SearchService],
 })
 export class AppModule {}

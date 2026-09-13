@@ -39,14 +39,18 @@ export class CheapSharkClient implements MarketplaceClient {
   readonly source = 'cheapshark';
   private readonly logger = new Logger(CheapSharkClient.name);
   private storesPromise: Promise<Map<string, string>> | null = null;
+  private readonly gameLookups = new Map<string, Promise<CheapSharkGame | null>>();
+
+  async findSteamAppId(query: string): Promise<string | null> {
+    const game = await this.findBestGame(query);
+    const steamAppId = game?.steamAppID?.trim();
+
+    return steamAppId && steamAppId !== '0' ? steamAppId : null;
+  }
 
   async search(query: string): Promise<Offer[]> {
     try {
-      const games = await this.getJson<CheapSharkGame[]>(
-        `${CHEAPSHARK_API}/games?title=${encodeURIComponent(query)}`,
-      );
-
-      const game = this.pickBestGame(games, query);
+      const game = await this.findBestGame(query);
       if (!game) {
         return [];
       }
@@ -68,6 +72,30 @@ export class CheapSharkClient implements MarketplaceClient {
       this.logger.warn(`CheapShark search failed: ${String(error)}`);
       return [];
     }
+  }
+
+  private findBestGame(query: string): Promise<CheapSharkGame | null> {
+    const key = query.trim().toLowerCase();
+    const pending = this.gameLookups.get(key);
+
+    if (pending) {
+      return pending;
+    }
+
+    const request = this.loadBestGame(query).finally(() => {
+      this.gameLookups.delete(key);
+    });
+
+    this.gameLookups.set(key, request);
+    return request;
+  }
+
+  private async loadBestGame(query: string): Promise<CheapSharkGame | null> {
+    const games = await this.getJson<CheapSharkGame[]>(
+      `${CHEAPSHARK_API}/games?title=${encodeURIComponent(query)}`,
+    );
+
+    return this.pickBestGame(games, query) ?? null;
   }
 
   private pickBestGame(

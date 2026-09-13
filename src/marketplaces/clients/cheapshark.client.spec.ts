@@ -19,6 +19,7 @@ describe('CheapSharkClient', () => {
           },
           {
             gameID: '1',
+            steamAppID: '1245620',
             cheapest: '50',
             cheapestDealID: 'base',
             external: 'ELDEN RING',
@@ -68,6 +69,7 @@ describe('CheapSharkClient', () => {
       url: 'https://www.cheapshark.com/redirect?dealID=fanatical-deal',
       price: { amount: 44.99, currency: 'USD' },
     });
+    await expect(client.findSteamAppId('elden ring')).resolves.toBe('1245620');
   });
 });
 
