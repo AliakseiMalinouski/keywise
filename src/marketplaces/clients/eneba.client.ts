@@ -48,7 +48,9 @@ export class EnebaClient implements MarketplaceClient {
 
         const hits = await hitsPromise;
         const offers = hits?.length
-          ? this.mapHits(hits)
+          ? hits
+              .map((hit) => this.toOffer(hit))
+              .filter((offer): offer is Offer => offer !== null)
           : await extractOffersFromDom(page, this.source, query);
 
         return pickCheapestMatching(offers, query);
@@ -59,34 +61,28 @@ export class EnebaClient implements MarketplaceClient {
     }
   }
 
-  private mapHits(hits: EnebaHit[]): Offer[] {
-    const offers: Offer[] = [];
+  private toOffer(hit: EnebaHit): Offer | null {
+    const title = hit.translations?.en_US?.name;
+    const slug = hit.slug;
+    const minor =
+      hit.lowestPrice?.EUR ?? hit.lowestPrice?.PLN ?? hit.lowestPrice?.USD;
 
-    for (const hit of hits) {
-      const title = hit.translations?.en_US?.name;
-      const slug = hit.slug;
-      const minor =
-        hit.lowestPrice?.EUR ?? hit.lowestPrice?.PLN ?? hit.lowestPrice?.USD;
-
-      if (!title || !slug || minor == null) {
-        continue;
-      }
-
-      const currency = hit.lowestPrice?.EUR
-        ? 'EUR'
-        : hit.lowestPrice?.PLN
-          ? 'PLN'
-          : 'USD';
-
-      offers.push({
-        source: this.source,
-        title,
-        url: `https://www.eneba.com/${slug}`,
-        region: hit.productRegions?.[0],
-        price: fromMinorUnits(minor, currency),
-      });
+    if (!title || !slug || minor == null) {
+      return null;
     }
 
-    return offers;
+    const currency = hit.lowestPrice?.EUR
+      ? 'EUR'
+      : hit.lowestPrice?.PLN
+        ? 'PLN'
+        : 'USD';
+
+    return {
+      source: this.source,
+      title,
+      url: `https://www.eneba.com/${slug}`,
+      region: hit.productRegions?.[0],
+      price: fromMinorUnits(minor, currency),
+    };
   }
 }
