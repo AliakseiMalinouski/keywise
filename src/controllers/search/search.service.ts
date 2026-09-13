@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import { CheapSharkClient } from '../../marketplaces/clients/cheapshark.client.js';
 import { GgDealsClient } from '../../marketplaces/clients/ggdeals.client.js';
+import { ItadClient } from '../../marketplaces/clients/itad.client.js';
 import type { MarketplaceClient, SourceResult } from '../../marketplaces/types.js';
 
 const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -18,8 +19,12 @@ export class SearchService {
   private readonly cache = new Map<string, CacheEntry>();
   private readonly inflight = new Map<string, Promise<SourceResult[]>>();
 
-  constructor(cheapshark: CheapSharkClient, ggdeals: GgDealsClient) {
-    this.clients = [cheapshark, ggdeals];
+  constructor(
+    cheapshark: CheapSharkClient,
+    ggdeals: GgDealsClient,
+    itad: ItadClient,
+  ) {
+    this.clients = [cheapshark, ggdeals, itad];
   }
 
   async search(query: string, region: string): Promise<SourceResult[]> {

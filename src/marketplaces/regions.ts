@@ -24,6 +24,10 @@ export type SearchRegion = (typeof SEARCH_REGIONS)[number];
 
 export const DEFAULT_SEARCH_REGION: SearchRegion = 'pl';
 
+export function toItadCountry(region: string): string {
+  return region === 'eu' ? 'DE' : region.toUpperCase();
+}
+
 export function parseSearchRegion(value?: string): SearchRegion {
   const region = value?.trim().toLowerCase();
 
