@@ -1,13 +1,17 @@
 import { Module } from '@nestjs/common';
+import { ConfigModule } from '@nestjs/config';
 
 import { SearchController, SearchService } from './controllers/search/index.js';
-import { BrowserService } from './marketplaces/browser.service.js';
 import { CheapSharkClient } from './marketplaces/clients/cheapshark.client.js';
-import { EnebaClient } from './marketplaces/clients/eneba.client.js';
 
 @Module({
-  imports: [],
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['.env.local', '.env'],
+    }),
+  ],
   controllers: [SearchController],
-  providers: [BrowserService, CheapSharkClient, EnebaClient, SearchService],
+  providers: [CheapSharkClient, SearchService],
 })
 export class AppModule {}

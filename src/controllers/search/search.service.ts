@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import { CheapSharkClient } from '../../marketplaces/clients/cheapshark.client.js';
-import { EnebaClient } from '../../marketplaces/clients/eneba.client.js';
 import type { MarketplaceClient, SourceResult } from '../../marketplaces/types.js';
 
 const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -18,8 +17,8 @@ export class SearchService {
   private readonly cache = new Map<string, CacheEntry>();
   private readonly inflight = new Map<string, Promise<SourceResult[]>>();
 
-  constructor(cheapshark: CheapSharkClient, eneba: EnebaClient) {
-    this.clients = [cheapshark, eneba];
+  constructor(cheapshark: CheapSharkClient) {
+    this.clients = [cheapshark];
   }
 
   async search(query: string): Promise<SourceResult[]> {
