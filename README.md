@@ -28,7 +28,6 @@ Copy `.env.example` to `.env.local` and fill in the keys you have:
 
 ```bash
 GGDEALS_API_KEY=
-GGDEALS_REGION=pl
 IS_THERE_ANY_DEAL_API_KEY=
 ```
 
