@@ -55,6 +55,28 @@ Do not use `yarn search` — that is a Yarn builtin. To go through Yarn:
 yarn run search "elden ring" pl
 ```
 
+### Desktop file (macOS)
+
+Create a file on the Desktop, for example `Keywise.command`. Put this template in it, set `cd` to your local clone, and set the region at the end (`pl`, `us`, …):
+
+```bash
+#!/bin/bash
+cd /path/to/keywise || exit 1
+
+GAME="$(osascript -e 'Tell application "System Events" to display dialog "Game:" default answer "elden ring"' -e 'text returned of result')"
+[[ -n "$GAME" ]] || exit 0
+
+./scripts/search.sh "$GAME" pl
+```
+
+Make it executable and double-click it:
+
+```bash
+chmod +x ~/Desktop/Keywise.command
+```
+
+A dialog asks for the game name, then the script starts the backend, sends the result to Telegram, and stops.
+
 ## HTTP API
 
 The same backend can stay up for local calls:
