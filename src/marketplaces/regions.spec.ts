@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { DEFAULT_SEARCH_REGION, parseSearchRegion, toItadCountry } from './regions.js';
+import {
+  DEFAULT_SEARCH_REGION,
+  parseSearchRegion,
+  regionCurrency,
+  toItadCountry,
+} from './regions.js';
 
 describe('parseSearchRegion', () => {
   it('defaults to pl when region is omitted', () => {
@@ -23,5 +28,13 @@ describe('toItadCountry', () => {
     expect(toItadCountry('pl')).toBe('PL');
     expect(toItadCountry('us')).toBe('US');
     expect(toItadCountry('eu')).toBe('DE');
+  });
+});
+
+describe('regionCurrency', () => {
+  it('maps search regions to store currencies', () => {
+    expect(regionCurrency('pl')).toBe('PLN');
+    expect(regionCurrency('us')).toBe('USD');
+    expect(regionCurrency('eu')).toBe('EUR');
   });
 });

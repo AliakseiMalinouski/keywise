@@ -16,6 +16,15 @@ export type SourceResult<T = Offer[]> = {
   data: T;
 };
 
+export type BestOffer = Offer & {
+  marketplace: string;
+};
+
+export type SearchResponse = {
+  result: SourceResult[];
+  best: BestOffer | null;
+};
+
 export type SearchOptions = {
   region: string;
 };

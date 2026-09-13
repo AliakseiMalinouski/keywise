@@ -10,6 +10,8 @@ GET /search?q=<game>&region=<code>
 
 `q` is required. `region` is optional and defaults to `pl`. Known values: `au`, `be`, `br`, `ca`, `ch`, `de`, `dk`, `es`, `eu`, `fi`, `fr`, `gb`, `ie`, `it`, `nl`, `no`, `pl`, `se`, `us`. CheapShark always returns USD; GG.deals and IsThereAnyDeal use the region.
 
+The response is `{ result, best }`. `result` is one block per source. `best` is the cheapest offer in the region currency (`pl` → PLN), or `null` if every source is empty.
+
 Example:
 
 ```bash

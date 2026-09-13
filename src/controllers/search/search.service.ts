@@ -1,15 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common';
 
-import { ItadClient } from '../../marketplaces/clients/itad.client.js';
-import { GgDealsClient } from '../../marketplaces/clients/ggdeals.client.js';
 import { CheapSharkClient } from '../../marketplaces/clients/cheapshark.client.js';
-import type { MarketplaceClient, SourceResult } from '../../marketplaces/types.js';
+import { GgDealsClient } from '../../marketplaces/clients/ggdeals.client.js';
+import { ItadClient } from '../../marketplaces/clients/itad.client.js';
+import type {
+  MarketplaceClient,
+  SearchResponse,
+  SourceResult,
+} from '../../marketplaces/types.js';
+import { pickBestOffer } from '../../marketplaces/utils/pick-best-offer.js';
 
 const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
 
 type CacheEntry = {
   expiresAt: number;
-  data: SourceResult[];
+  data: SearchResponse;
 };
 
 @Injectable()
@@ -17,7 +22,7 @@ export class SearchService {
   private readonly logger = new Logger(SearchService.name);
   private readonly clients: MarketplaceClient[];
   private readonly cache = new Map<string, CacheEntry>();
-  private readonly inflight = new Map<string, Promise<SourceResult[]>>();
+  private readonly inflight = new Map<string, Promise<SearchResponse>>();
 
   constructor(
     cheapshark: CheapSharkClient,
@@ -27,7 +32,7 @@ export class SearchService {
     this.clients = [cheapshark, ggdeals, itad];
   }
 
-  async search(query: string, region: string): Promise<SourceResult[]> {
+  async search(query: string, region: string): Promise<SearchResponse> {
     const key = `${query.trim().toLowerCase()}|${region}`;
     const cached = this.cache.get(key);
 
@@ -41,7 +46,11 @@ export class SearchService {
     }
 
     const request = this.fetchSources(query, region)
-      .then((data) => {
+      .then((result) => {
+        const data: SearchResponse = {
+          result,
+          best: pickBestOffer(result, region),
+        };
         this.cache.set(key, {
           expiresAt: Date.now() + SEARCH_CACHE_TTL_MS,
           data,

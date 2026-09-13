@@ -1,11 +1,11 @@
 import { Test } from '@nestjs/testing';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { SearchService } from './search.service.js';
-import type { Offer } from '../../marketplaces/types.js';
-import { ItadClient } from '../../marketplaces/clients/itad.client.js';
-import { GgDealsClient } from '../../marketplaces/clients/ggdeals.client.js';
 import { CheapSharkClient } from '../../marketplaces/clients/cheapshark.client.js';
+import { GgDealsClient } from '../../marketplaces/clients/ggdeals.client.js';
+import { ItadClient } from '../../marketplaces/clients/itad.client.js';
+import type { Offer, SearchResponse } from '../../marketplaces/types.js';
+import { SearchService } from './search.service.js';
 
 const steamOffer: Offer = {
   source: 'Steam',
@@ -30,18 +30,26 @@ const itadOffer: Offer = {
   price: { amount: 199.99, currency: 'PLN' },
 };
 
-const cachedResult = [
+const sourceResult = [
   { source: 'cheapshark', data: [steamOffer] },
   { source: 'gg.deals', data: [ggDealsOffer] },
   { source: 'itad', data: [itadOffer] },
 ];
+
+const cachedResult: SearchResponse = {
+  result: sourceResult,
+  best: {
+    ...ggDealsOffer,
+    marketplace: 'gg.deals',
+  },
+};
 
 describe('SearchService', () => {
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it('returns a result per source', async () => {
+  it('returns sources and the cheapest regional offer', async () => {
     const service = await createService();
 
     await expect(service.search('elden ring', 'pl')).resolves.toEqual(cachedResult);
@@ -54,11 +62,17 @@ describe('SearchService', () => {
       },
     });
 
-    await expect(service.search('elden ring', 'pl')).resolves.toEqual([
-      { source: 'cheapshark', data: [] },
-      { source: 'gg.deals', data: [ggDealsOffer] },
-      { source: 'itad', data: [itadOffer] },
-    ]);
+    await expect(service.search('elden ring', 'pl')).resolves.toEqual({
+      result: [
+        { source: 'cheapshark', data: [] },
+        { source: 'gg.deals', data: [ggDealsOffer] },
+        { source: 'itad', data: [itadOffer] },
+      ],
+      best: {
+        ...ggDealsOffer,
+        marketplace: 'gg.deals',
+      },
+    });
   });
 
   it('reuses the cached response for the same query within 5 minutes', async () => {

@@ -1,6 +1,6 @@
 # Data sources
 
-Keywise does not scrape storefronts. Each `/search` request asks these public APIs and returns one block per source. A missing key or a failed request yields `{ "source": "...", "data": [] }` and does not fail the whole response.
+Keywise does not scrape storefronts. Each `/search` request asks these public APIs and returns `{ result, best }`. `result` is one block per source. `best` is the cheapest offer in the region currency, or `null` if every source is empty. A missing key or a failed request yields `{ "source": "...", "data": [] }` and does not fail the whole response.
 
 ## CheapShark
 
