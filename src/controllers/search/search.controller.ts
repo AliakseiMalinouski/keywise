@@ -1,4 +1,10 @@
-import { BadRequestException, Controller, Get, Query } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  Get,
+  Header,
+  Query,
+} from '@nestjs/common';
 
 import { SearchService } from './search.service.js';
 
@@ -7,6 +13,7 @@ export class SearchController {
   constructor(private readonly service: SearchService) {}
 
   @Get()
+  @Header('Cache-Control', 'public, max-age=300')
   search(@Query('q') query?: string) {
     const q = query?.trim();
 

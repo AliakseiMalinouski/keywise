@@ -4,16 +4,54 @@ import { CheapSharkClient } from '../../marketplaces/clients/cheapshark.client.j
 import { EnebaClient } from '../../marketplaces/clients/eneba.client.js';
 import type { MarketplaceClient, SourceResult } from '../../marketplaces/types.js';
 
+const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
+
+type CacheEntry = {
+  expiresAt: number;
+  data: SourceResult[];
+};
+
 @Injectable()
 export class SearchService {
   private readonly logger = new Logger(SearchService.name);
   private readonly clients: MarketplaceClient[];
+  private readonly cache = new Map<string, CacheEntry>();
+  private readonly inflight = new Map<string, Promise<SourceResult[]>>();
 
   constructor(cheapshark: CheapSharkClient, eneba: EnebaClient) {
     this.clients = [cheapshark, eneba];
   }
 
   async search(query: string): Promise<SourceResult[]> {
+    const key = query.trim().toLowerCase();
+    const cached = this.cache.get(key);
+
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data;
+    }
+
+    const pending = this.inflight.get(key);
+    if (pending) {
+      return pending;
+    }
+
+    const request = this.fetchSources(query)
+      .then((data) => {
+        this.cache.set(key, {
+          expiresAt: Date.now() + SEARCH_CACHE_TTL_MS,
+          data,
+        });
+        return data;
+      })
+      .finally(() => {
+        this.inflight.delete(key);
+      });
+
+    this.inflight.set(key, request);
+    return request;
+  }
+
+  private async fetchSources(query: string): Promise<SourceResult[]> {
     const results = await Promise.allSettled(
       this.clients.map((client) => client.search(query)),
     );

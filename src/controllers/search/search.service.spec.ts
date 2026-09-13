@@ -1,5 +1,5 @@
 import { Test } from '@nestjs/testing';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CheapSharkClient } from '../../marketplaces/clients/cheapshark.client.js';
 import { EnebaClient } from '../../marketplaces/clients/eneba.client.js';
@@ -21,64 +21,112 @@ const enebaOffer: Offer = {
   price: { amount: 44.66, currency: 'EUR' },
 };
 
+const cachedResult = [
+  { source: 'cheapshark', data: [steamOffer] },
+  { source: 'eneba', data: [enebaOffer] },
+];
+
 describe('SearchService', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it('returns a result per source', async () => {
-    const module = await Test.createTestingModule({
-      providers: [
-        SearchService,
-        {
-          provide: CheapSharkClient,
-          useValue: {
-            source: 'cheapshark',
-            search: async () => [steamOffer],
-          },
-        },
-        {
-          provide: EnebaClient,
-          useValue: {
-            source: 'eneba',
-            search: async () => [enebaOffer],
-          },
-        },
-      ],
-    }).compile();
+    const service = await createService();
 
-    const service = module.get(SearchService);
-
-    await expect(service.search('elden ring')).resolves.toEqual([
-      { source: 'cheapshark', data: [steamOffer] },
-      { source: 'eneba', data: [enebaOffer] },
-    ]);
+    await expect(service.search('elden ring')).resolves.toEqual(cachedResult);
   });
 
   it('keeps a source with empty data when it fails', async () => {
-    const module = await Test.createTestingModule({
-      providers: [
-        SearchService,
-        {
-          provide: CheapSharkClient,
-          useValue: {
-            source: 'cheapshark',
-            search: async () => {
-              throw new Error('network');
-            },
-          },
-        },
-        {
-          provide: EnebaClient,
-          useValue: {
-            source: 'eneba',
-            search: async () => [enebaOffer],
-          },
-        },
-      ],
-    }).compile();
-
-    const service = module.get(SearchService);
+    const service = await createService({
+      cheapsharkSearch: async () => {
+        throw new Error('network');
+      },
+    });
 
     await expect(service.search('elden ring')).resolves.toEqual([
       { source: 'cheapshark', data: [] },
       { source: 'eneba', data: [enebaOffer] },
     ]);
   });
+
+  it('reuses the cached response for the same query within 5 minutes', async () => {
+    const cheapsharkSearch = vi.fn(async () => [steamOffer]);
+    const enebaSearch = vi.fn(async () => [enebaOffer]);
+    const service = await createService({ cheapsharkSearch, enebaSearch });
+
+    await service.search('Elden Ring');
+    await service.search('elden ring');
+
+    expect(cheapsharkSearch).toHaveBeenCalledTimes(1);
+    expect(enebaSearch).toHaveBeenCalledTimes(1);
+  });
+
+  it('shares one inflight request for the same query', async () => {
+    let finish!: (value: Offer[]) => void;
+    const cheapsharkSearch = vi.fn(
+      () =>
+        new Promise<Offer[]>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    const enebaSearch = vi.fn(async () => [enebaOffer]);
+    const service = await createService({ cheapsharkSearch, enebaSearch });
+
+    const first = service.search('elden ring');
+    const second = service.search('elden ring');
+
+    finish([steamOffer]);
+    await expect(Promise.all([first, second])).resolves.toEqual([
+      cachedResult,
+      cachedResult,
+    ]);
+    expect(cheapsharkSearch).toHaveBeenCalledTimes(1);
+  });
+
+  it('refetches after the cache expires', async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-09-13T18:00:00.000Z'));
+
+    const cheapsharkSearch = vi.fn(async () => [steamOffer]);
+    const enebaSearch = vi.fn(async () => [enebaOffer]);
+    const service = await createService({ cheapsharkSearch, enebaSearch });
+
+    await service.search('elden ring');
+    vi.setSystemTime(new Date('2026-09-13T18:05:01.000Z'));
+    await service.search('elden ring');
+
+    expect(cheapsharkSearch).toHaveBeenCalledTimes(2);
+    expect(enebaSearch).toHaveBeenCalledTimes(2);
+  });
 });
+
+async function createService({
+  cheapsharkSearch = async () => [steamOffer],
+  enebaSearch = async () => [enebaOffer],
+}: {
+  cheapsharkSearch?: () => Promise<Offer[]>;
+  enebaSearch?: () => Promise<Offer[]>;
+} = {}): Promise<SearchService> {
+  const module = await Test.createTestingModule({
+    providers: [
+      SearchService,
+      {
+        provide: CheapSharkClient,
+        useValue: {
+          source: 'cheapshark',
+          search: cheapsharkSearch,
+        },
+      },
+      {
+        provide: EnebaClient,
+        useValue: {
+          source: 'eneba',
+          search: enebaSearch,
+        },
+      },
+    ],
+  }).compile();
+
+  return module.get(SearchService);
+}
