@@ -1,6 +1,6 @@
 # Data sources
 
-Keywise does not scrape storefronts. Each `/search` request asks these public APIs and returns `{ result, best }`. `result` is one block per source. `best` is the cheapest offer in the region currency, or `null` if every source is empty. A missing key or a failed request yields `{ "source": "...", "data": [] }` and does not fail the whole response.
+Keywise does not scrape storefronts. Each `/search` request asks these public APIs and returns `{ result, best }`. `result` is one block per source. `best` is the cheapest offer in the region currency, or `null` if every source is empty. A missing key or a failed request yields `{ "source": "...", "data": [] }` and does not fail the whole response. When `steam` is set, the response also includes `wishlist`.
 
 ## CheapShark
 
@@ -29,3 +29,12 @@ GG.deals does not search by title. Keywise resolves the Steam App ID through Che
 - Used for: title search and per-shop prices (`/games/search/v1`, `/games/prices/v3`)
 
 OAuth client id is not used. Price endpoints need only the API key.
+
+## Steam
+
+- Site: [steampowered.com](https://store.steampowered.com/)
+- Docs: [partner.steamgames.com/doc/webapi](https://partner.steamgames.com/doc/webapi)
+- Auth: `STEAM_API_KEY` for `ISteamUser/ResolveVanityURL` only
+- Used for: optional `/search?steam=` wishlist lookup
+
+A SteamID64 or `/profiles/{steamid}` URL is used as-is. A `/id/{name}` URL is resolved with the API key. The wishlist itself comes from `IWishlistService/GetWishlist`, which does not need a key. The list is public-wishlist only; a private wishlist comes back empty. Titles are filled from `IStoreBrowseService/GetItems` when Steam returns them. The searched game is matched to a Steam App ID through CheapShark and marked `selected: true` when it is on the list.

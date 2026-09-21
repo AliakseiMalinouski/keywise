@@ -5,6 +5,7 @@ import { CheapSharkClient } from '../../marketplaces/clients/cheapshark.client.j
 import { GgDealsClient } from '../../marketplaces/clients/ggdeals.client.js';
 import { ItadClient } from '../../marketplaces/clients/itad.client.js';
 import type { Offer, SearchResponse } from '../../marketplaces/types.js';
+import { SteamClient } from '../../steam/index.js';
 import { SearchService } from './search.service.js';
 
 const steamOffer: Offer = {
@@ -159,16 +160,125 @@ describe('SearchService', () => {
     expect(cheapsharkSearch).toHaveBeenCalledTimes(2);
     expect(ggdealsSearch).toHaveBeenCalledWith('elden ring', { region: 'us' });
   });
+
+  it('marks the searched game as selected when it is on the Steam wishlist', async () => {
+    const getWishlist = vi.fn(async () => [
+      { appid: 1245620, title: 'ELDEN RING' },
+      { appid: 570, title: 'Dota 2' },
+    ]);
+    const service = await createService({ getWishlist });
+
+    await expect(
+      service.search('elden ring', 'pl', '76561198012345678'),
+    ).resolves.toEqual({
+      ...cachedResult,
+      wishlist: [
+        { appid: 1245620, title: 'ELDEN RING', selected: true },
+        { appid: 570, title: 'Dota 2', selected: false },
+      ],
+    });
+    expect(getWishlist).toHaveBeenCalledWith('76561198012345678');
+  });
+
+  it('resolves a profile URL before loading the wishlist', async () => {
+    const resolveSteamid = vi.fn(async () => '76561198012345678');
+    const getWishlist = vi.fn(async () => [
+      { appid: 570, title: 'Dota 2' },
+    ]);
+    const service = await createService({ resolveSteamid, getWishlist });
+
+    const response = await service.search(
+      'elden ring',
+      'pl',
+      'https://steamcommunity.com/id/gaben',
+    );
+
+    expect(resolveSteamid).toHaveBeenCalledWith({ vanity: 'gaben' });
+    expect(response.wishlist).toEqual([
+      { appid: 570, title: 'Dota 2', selected: false },
+    ]);
+  });
+
+  it('returns an empty wishlist when steam is invalid', async () => {
+    const service = await createService();
+
+    await expect(
+      service.search('elden ring', 'pl', 'not-a-steam-profile'),
+    ).resolves.toEqual({
+      ...cachedResult,
+      wishlist: [],
+    });
+  });
+
+  it('returns an empty wishlist when the steam profile cannot be resolved', async () => {
+    const service = await createService({
+      resolveSteamid: async () => null,
+    });
+
+    await expect(
+      service.search('elden ring', 'pl', 'https://steamcommunity.com/id/missing'),
+    ).resolves.toEqual({
+      ...cachedResult,
+      wishlist: [],
+    });
+  });
+
+  it('keeps marketplace cache when steam profiles differ', async () => {
+    const cheapsharkSearch = vi.fn(async () => [steamOffer]);
+    const getWishlist = vi.fn(async (steamid: string) => [
+      {
+        appid: steamid === '76561198012345678' ? 1245620 : 570,
+        title: steamid === '76561198012345678' ? 'ELDEN RING' : 'Dota 2',
+      },
+    ]);
+    const service = await createService({ cheapsharkSearch, getWishlist });
+
+    await service.search('elden ring', 'pl', '76561198012345678');
+    await service.search('elden ring', 'pl', '76561198000000000');
+
+    expect(cheapsharkSearch).toHaveBeenCalledTimes(1);
+    expect(getWishlist).toHaveBeenCalledTimes(2);
+  });
+
+  it('returns an empty wishlist when Steam fails after a valid profile', async () => {
+    const service = await createService({
+      getWishlist: async () => {
+        throw new Error('steam down');
+      },
+    });
+
+    await expect(
+      service.search('elden ring', 'pl', '76561198012345678'),
+    ).resolves.toEqual({
+      ...cachedResult,
+      wishlist: [],
+    });
+  });
 });
 
 async function createService({
   cheapsharkSearch = async () => [steamOffer],
+  findSteamAppId = async () => '1245620',
   ggdealsSearch = async () => [ggDealsOffer],
   itadSearch = async () => [itadOffer],
+  resolveSteamid = async (identity: { steamid?: string }) =>
+    identity.steamid ?? '76561198012345678',
+  getWishlist = async () => [],
 }: {
   cheapsharkSearch?: () => Promise<Offer[]>;
+  findSteamAppId?: () => Promise<string | null>;
   ggdealsSearch?: () => Promise<Offer[]>;
   itadSearch?: () => Promise<Offer[]>;
+  resolveSteamid?: (identity: {
+    steamid?: string;
+    vanity?: string;
+  }) => Promise<string | null>;
+  getWishlist?: (steamid: string) => Promise<
+    Array<{
+      appid: number;
+      title: string | null;
+    }>
+  >;
 } = {}): Promise<SearchService> {
   const module = await Test.createTestingModule({
     providers: [
@@ -178,6 +288,7 @@ async function createService({
         useValue: {
           source: 'cheapshark',
           search: cheapsharkSearch,
+          findSteamAppId,
         },
       },
       {
@@ -192,6 +303,13 @@ async function createService({
         useValue: {
           source: 'itad',
           search: itadSearch,
+        },
+      },
+      {
+        provide: SteamClient,
+        useValue: {
+          resolveSteamid,
+          getWishlist,
         },
       },
     ],

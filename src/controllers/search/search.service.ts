@@ -7,8 +7,10 @@ import type {
   MarketplaceClient,
   SearchResponse,
   SourceResult,
+  WishlistGame,
 } from '../../marketplaces/types.js';
 import { pickBestOffer } from '../../marketplaces/utils/pick-best-offer.js';
+import { parseSteamInput, SteamClient } from '../../steam/index.js';
 
 const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -25,14 +27,35 @@ export class SearchService {
   private readonly inflight = new Map<string, Promise<SearchResponse>>();
 
   constructor(
-    cheapshark: CheapSharkClient,
+    private readonly cheapshark: CheapSharkClient,
     ggdeals: GgDealsClient,
     itad: ItadClient,
+    private readonly steam: SteamClient,
   ) {
     this.clients = [cheapshark, ggdeals, itad];
   }
 
-  async search(query: string, region: string): Promise<SearchResponse> {
+  async search(
+    query: string,
+    region: string,
+    steam?: string,
+  ): Promise<SearchResponse> {
+    const data = await this.searchMarketplaces(query, region);
+
+    if (!steam) {
+      return data;
+    }
+
+    return {
+      ...data,
+      wishlist: await this.loadWishlist(query, steam),
+    };
+  }
+
+  private async searchMarketplaces(
+    query: string,
+    region: string,
+  ): Promise<SearchResponse> {
     const key = `${query.trim().toLowerCase()}|${region}`;
     const cached = this.cache.get(key);
 
@@ -63,6 +86,39 @@ export class SearchService {
 
     this.inflight.set(key, request);
     return request;
+  }
+
+  private async loadWishlist(
+    query: string,
+    steam: string,
+  ): Promise<WishlistGame[]> {
+    const identity = parseSteamInput(steam);
+    if (!identity) {
+      this.logger.warn(`Invalid steam parameter: ${steam}`);
+      return [];
+    }
+
+    const steamid = await this.steam.resolveSteamid(identity);
+    if (!steamid) {
+      this.logger.warn(`Steam profile could not be resolved: ${steam}`);
+      return [];
+    }
+
+    try {
+      const [items, gameAppId] = await Promise.all([
+        this.steam.getWishlist(steamid),
+        this.cheapshark.findSteamAppId(query),
+      ]);
+
+      return items.map((item) => ({
+        appid: item.appid,
+        title: item.title,
+        selected: gameAppId != null && String(item.appid) === gameAppId,
+      }));
+    } catch (error) {
+      this.logger.warn(`Steam wishlist failed: ${String(error)}`);
+      return [];
+    }
   }
 
   private async fetchSources(

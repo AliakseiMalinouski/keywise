@@ -20,9 +20,16 @@ export type BestOffer = Offer & {
   marketplace: string;
 };
 
+export type WishlistGame = {
+  appid: number;
+  title: string | null;
+  selected: boolean;
+};
+
 export type SearchResponse = {
   result: SourceResult[];
   best: BestOffer | null;
+  wishlist?: WishlistGame[];
 };
 
 export type SearchOptions = {
