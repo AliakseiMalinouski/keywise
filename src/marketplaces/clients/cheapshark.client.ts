@@ -5,6 +5,7 @@ import { normalizeTitle, titleMatchesQuery } from '../utils/match-title.js';
 
 const CHEAPSHARK_API = 'https://www.cheapshark.com/api/1.0';
 const USER_AGENT = 'keywise/0.0.1 (https://github.com/AliakseiMalinouski/keywise)';
+const GAME_CACHE_TTL_MS = 5 * 60 * 1000;
 
 type CheapSharkGame = {
   gameID: string;
@@ -39,6 +40,10 @@ export class CheapSharkClient implements MarketplaceClient {
   readonly source = 'cheapshark';
   private readonly logger = new Logger(CheapSharkClient.name);
   private storesPromise: Promise<Map<string, string>> | null = null;
+  private readonly gameCache = new Map<
+    string,
+    { expiresAt: number; game: CheapSharkGame | null }
+  >();
   private readonly gameLookups = new Map<string, Promise<CheapSharkGame | null>>();
 
   async findSteamAppId(query: string): Promise<string | null> {
@@ -76,15 +81,28 @@ export class CheapSharkClient implements MarketplaceClient {
 
   private findBestGame(query: string): Promise<CheapSharkGame | null> {
     const key = query.trim().toLowerCase();
-    const pending = this.gameLookups.get(key);
+    const cached = this.gameCache.get(key);
 
+    if (cached && cached.expiresAt > Date.now()) {
+      return Promise.resolve(cached.game);
+    }
+
+    const pending = this.gameLookups.get(key);
     if (pending) {
       return pending;
     }
 
-    const request = this.loadBestGame(query).finally(() => {
-      this.gameLookups.delete(key);
-    });
+    const request = this.loadBestGame(query)
+      .then((game) => {
+        this.gameCache.set(key, {
+          expiresAt: Date.now() + GAME_CACHE_TTL_MS,
+          game,
+        });
+        return game;
+      })
+      .finally(() => {
+        this.gameLookups.delete(key);
+      });
 
     this.gameLookups.set(key, request);
     return request;

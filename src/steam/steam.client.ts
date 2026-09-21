@@ -5,7 +5,7 @@ import type { SteamIdentity } from './parse-steam-input.js';
 
 const STEAM_API = 'https://api.steampowered.com';
 const USER_AGENT = 'keywise/0.0.1 (https://github.com/AliakseiMalinouski/keywise)';
-const WISHLIST_CACHE_TTL_MS = 5 * 60 * 1000;
+const CACHE_TTL_MS = 5 * 60 * 1000;
 const TITLE_BATCH_SIZE = 100;
 
 export type SteamWishlistItem = {
@@ -13,9 +13,19 @@ export type SteamWishlistItem = {
   title: string | null;
 };
 
-type CacheEntry = {
+type WishlistCacheEntry = {
   expiresAt: number;
   items: SteamWishlistItem[];
+};
+
+type VanityCacheEntry = {
+  expiresAt: number;
+  steamid: string;
+};
+
+type TitleCacheEntry = {
+  expiresAt: number;
+  title: string;
 };
 
 type VanityResponse = {
@@ -49,8 +59,14 @@ type StoreItemsResponse = {
 @Injectable()
 export class SteamClient {
   private readonly logger = new Logger(SteamClient.name);
-  private readonly cache = new Map<string, CacheEntry>();
-  private readonly inflight = new Map<string, Promise<SteamWishlistItem[]>>();
+  private readonly wishlistCache = new Map<string, WishlistCacheEntry>();
+  private readonly wishlistInflight = new Map<
+    string,
+    Promise<SteamWishlistItem[]>
+  >();
+  private readonly vanityCache = new Map<string, VanityCacheEntry>();
+  private readonly vanityInflight = new Map<string, Promise<string | null>>();
+  private readonly titleCache = new Map<number, TitleCacheEntry>();
 
   constructor(private readonly config: ConfigService) {}
 
@@ -63,33 +79,64 @@ export class SteamClient {
   }
 
   async getWishlist(steamid: string): Promise<SteamWishlistItem[]> {
-    const cached = this.cache.get(steamid);
+    const cached = this.wishlistCache.get(steamid);
     if (cached && cached.expiresAt > Date.now()) {
       return cached.items;
     }
 
-    const pending = this.inflight.get(steamid);
+    const pending = this.wishlistInflight.get(steamid);
     if (pending) {
       return pending;
     }
 
     const request = this.loadWishlist(steamid)
       .then((items) => {
-        this.cache.set(steamid, {
-          expiresAt: Date.now() + WISHLIST_CACHE_TTL_MS,
+        this.wishlistCache.set(steamid, {
+          expiresAt: Date.now() + CACHE_TTL_MS,
           items,
         });
         return items;
       })
       .finally(() => {
-        this.inflight.delete(steamid);
+        this.wishlistInflight.delete(steamid);
       });
 
-    this.inflight.set(steamid, request);
+    this.wishlistInflight.set(steamid, request);
     return request;
   }
 
   private async resolveVanity(vanity: string): Promise<string | null> {
+    const key = vanity.trim().toLowerCase();
+    const cached = this.vanityCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.steamid;
+    }
+
+    const pending = this.vanityInflight.get(key);
+    if (pending) {
+      return pending;
+    }
+
+    const request = this.lookupVanity(vanity)
+      .then((steamid) => {
+        if (steamid) {
+          this.vanityCache.set(key, {
+            expiresAt: Date.now() + CACHE_TTL_MS,
+            steamid,
+          });
+        }
+
+        return steamid;
+      })
+      .finally(() => {
+        this.vanityInflight.delete(key);
+      });
+
+    this.vanityInflight.set(key, request);
+    return request;
+  }
+
+  private async lookupVanity(vanity: string): Promise<string | null> {
     const apiKey = this.config.get<string>('STEAM_API_KEY')?.trim();
     if (!apiKey) {
       this.logger.warn('STEAM_API_KEY is not set');
@@ -129,40 +176,69 @@ export class SteamClient {
 
   private async getTitles(appids: number[]): Promise<Map<number, string>> {
     const titles = new Map<number, string>();
-    if (appids.length === 0) {
+    const missing: number[] = [];
+
+    for (const appid of appids) {
+      const cached = this.titleCache.get(appid);
+      if (cached && cached.expiresAt > Date.now()) {
+        titles.set(appid, cached.title);
+        continue;
+      }
+
+      missing.push(appid);
+    }
+
+    if (missing.length === 0) {
       return titles;
     }
 
-    for (const batch of chunk(appids, TITLE_BATCH_SIZE)) {
-      try {
-        const url = new URL(`${STEAM_API}/IStoreBrowseService/GetItems/v1`);
-        url.searchParams.set(
-          'input_json',
-          JSON.stringify({
-            ids: batch.map((appid) => ({ appid })),
-            context: {
-              language: 'english',
-              country_code: 'US',
-              steam_realm: 1,
-            },
-            data_request: {
-              include_basic_info: true,
-            },
-          }),
-        );
+    const results = await Promise.allSettled(
+      chunk(missing, TITLE_BATCH_SIZE).map((batch) => this.fetchTitleBatch(batch)),
+    );
 
-        const payload = await this.getJson<StoreItemsResponse>(url);
-        const items =
-          payload.response?.store_items ?? payload.response?.items ?? [];
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        this.logger.warn(`Steam title lookup failed: ${String(result.reason)}`);
+        continue;
+      }
 
-        for (const item of items) {
-          const title = item.name?.trim();
-          if (item.appid != null && title) {
-            titles.set(item.appid, title);
-          }
-        }
-      } catch (error) {
-        this.logger.warn(`Steam title lookup failed: ${String(error)}`);
+      for (const [appid, title] of result.value) {
+        this.titleCache.set(appid, {
+          expiresAt: Date.now() + CACHE_TTL_MS,
+          title,
+        });
+        titles.set(appid, title);
+      }
+    }
+
+    return titles;
+  }
+
+  private async fetchTitleBatch(appids: number[]): Promise<Map<number, string>> {
+    const url = new URL(`${STEAM_API}/IStoreBrowseService/GetItems/v1`);
+    url.searchParams.set(
+      'input_json',
+      JSON.stringify({
+        ids: appids.map((appid) => ({ appid })),
+        context: {
+          language: 'english',
+          country_code: 'US',
+          steam_realm: 1,
+        },
+        data_request: {
+          include_basic_info: true,
+        },
+      }),
+    );
+
+    const payload = await this.getJson<StoreItemsResponse>(url);
+    const items = payload.response?.store_items ?? payload.response?.items ?? [];
+    const titles = new Map<number, string>();
+
+    for (const item of items) {
+      const title = item.name?.trim();
+      if (item.appid != null && title) {
+        titles.set(item.appid, title);
       }
     }
 

@@ -33,6 +33,10 @@ describe('SteamClient', () => {
     await expect(client.resolveSteamid({ vanity: 'gaben' })).resolves.toBe(
       '76561198012345678',
     );
+    await expect(client.resolveSteamid({ vanity: 'gaben' })).resolves.toBe(
+      '76561198012345678',
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
   it('returns null when vanity lookup fails or the key is missing', async () => {
@@ -106,6 +110,80 @@ describe('SteamClient', () => {
         String(url).includes('GetWishlist'),
       ),
     ).toHaveLength(1);
+  });
+
+  it('reuses cached titles across wishlists', async () => {
+    const fetchMock = vi.fn(async (url: URL) => {
+      if (url.pathname.includes('GetWishlist')) {
+        return jsonResponse({
+          response: { items: [{ appid: 570 }] },
+        });
+      }
+
+      if (url.pathname.includes('GetItems')) {
+        return jsonResponse({
+          response: { store_items: [{ appid: 570, name: 'Dota 2' }] },
+        });
+      }
+
+      throw new Error(`Unexpected URL ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = createClient();
+    await client.getWishlist('76561198012345678');
+    await client.getWishlist('76561198000000000');
+
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url).includes('GetItems')),
+    ).toHaveLength(1);
+    expect(
+      fetchMock.mock.calls.filter(([url]) =>
+        String(url).includes('GetWishlist'),
+      ),
+    ).toHaveLength(2);
+  });
+
+  it('fetches title batches in parallel', async () => {
+    const appids = Array.from({ length: 101 }, (_, index) => index + 1);
+    let releaseFirst!: () => void;
+    const firstBatch = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let itemsCalls = 0;
+
+    const fetchMock = vi.fn(async (url: URL) => {
+      if (url.pathname.includes('GetWishlist')) {
+        return jsonResponse({
+          response: { items: appids.map((appid) => ({ appid })) },
+        });
+      }
+
+      if (url.pathname.includes('GetItems')) {
+        itemsCalls += 1;
+        if (itemsCalls === 1) {
+          await firstBatch;
+        }
+
+        return jsonResponse({
+          response: {
+            store_items: appids.slice(0, 1).map((appid) => ({
+              appid,
+              name: `Game ${appid}`,
+            })),
+          },
+        });
+      }
+
+      throw new Error(`Unexpected URL ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = createClient();
+    const pending = client.getWishlist('76561198012345678');
+    await vi.waitFor(() => expect(itemsCalls).toBe(2));
+    releaseFirst();
+    await pending;
   });
 });
 

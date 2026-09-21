@@ -40,15 +40,18 @@ export class SearchService {
     region: string,
     steam?: string,
   ): Promise<SearchResponse> {
-    const data = await this.searchMarketplaces(query, region);
-
     if (!steam) {
-      return data;
+      return this.searchMarketplaces(query, region);
     }
+
+    const [data, wishlist] = await Promise.all([
+      this.searchMarketplaces(query, region),
+      this.loadWishlist(query, steam),
+    ]);
 
     return {
       ...data,
-      wishlist: await this.loadWishlist(query, steam),
+      wishlist,
     };
   }
 

@@ -161,6 +161,36 @@ describe('SearchService', () => {
     expect(ggdealsSearch).toHaveBeenCalledWith('elden ring', { region: 'us' });
   });
 
+  it('loads the wishlist in parallel with marketplaces', async () => {
+    let finishSearch!: (value: Offer[]) => void;
+    let wishlistStarted!: () => void;
+    const wishlistGate = new Promise<void>((resolve) => {
+      wishlistStarted = resolve;
+    });
+    const cheapsharkSearch = vi.fn(
+      () =>
+        new Promise<Offer[]>((resolve) => {
+          finishSearch = resolve;
+        }),
+    );
+    const getWishlist = vi.fn(async () => {
+      wishlistStarted();
+      return [{ appid: 1245620, title: 'ELDEN RING' }];
+    });
+    const service = await createService({ cheapsharkSearch, getWishlist });
+
+    const pending = service.search('elden ring', 'pl', '76561198012345678');
+    await wishlistGate;
+    expect(cheapsharkSearch).toHaveBeenCalledTimes(1);
+    expect(getWishlist).toHaveBeenCalledTimes(1);
+
+    finishSearch([steamOffer]);
+    await expect(pending).resolves.toEqual({
+      ...cachedResult,
+      wishlist: [{ appid: 1245620, title: 'ELDEN RING', selected: true }],
+    });
+  });
+
   it('marks the searched game as selected when it is on the Steam wishlist', async () => {
     const getWishlist = vi.fn(async () => [
       { appid: 1245620, title: 'ELDEN RING' },

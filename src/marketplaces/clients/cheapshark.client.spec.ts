@@ -70,6 +70,9 @@ describe('CheapSharkClient', () => {
       price: { amount: 44.99, currency: 'USD' },
     });
     await expect(client.findSteamAppId('elden ring')).resolves.toBe('1245620');
+    expect(
+      fetchMock.mock.calls.filter(([url]) => String(url).includes('games?title=')),
+    ).toHaveLength(1);
   });
 });
 
