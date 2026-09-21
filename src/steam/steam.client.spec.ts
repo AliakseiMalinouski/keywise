@@ -39,16 +39,47 @@ describe('SteamClient', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('returns null when vanity lookup fails or the key is missing', async () => {
-    const withoutKey = createClient({ apiKey: '' });
-    await expect(
-      withoutKey.resolveSteamid({ vanity: 'gaben' }),
-    ).resolves.toBeNull();
+  it('falls back to the profile page when the API key is missing', async () => {
+    const fetchMock = vi.fn(async (url: URL) => {
+      expect(String(url)).toContain('steamcommunity.com/id/gaben');
+      return textResponse('<steamID64>76561198012345678</steamID64>');
+    });
+    vi.stubGlobal('fetch', fetchMock);
 
+    const client = createClient({ apiKey: '' });
+    await expect(client.resolveSteamid({ vanity: 'gaben' })).resolves.toBe(
+      '76561198012345678',
+    );
+  });
+
+  it('falls back to the profile page when vanity API fails', async () => {
+    const fetchMock = vi.fn(async (url: URL) => {
+      if (String(url).includes('ResolveVanityURL')) {
+        return jsonResponse({ response: { success: 42 } });
+      }
+
+      return textResponse('g_rgProfileData = {"steamid":"76561198012345678"}');
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = createClient();
+    await expect(client.resolveSteamid({ vanity: 'gaben' })).resolves.toBe(
+      '76561198012345678',
+    );
+  });
+
+  it('returns null when vanity cannot be resolved', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => jsonResponse({ response: { success: 42 } })),
+      vi.fn(async (url: URL) => {
+        if (String(url).includes('ResolveVanityURL')) {
+          return jsonResponse({ response: { success: 42 } });
+        }
+
+        return textResponse('no steamid here');
+      }),
     );
+
     const client = createClient();
     await expect(client.resolveSteamid({ vanity: 'missing' })).resolves.toBeNull();
   });
@@ -197,5 +228,12 @@ function jsonResponse(body: unknown): Response {
   return {
     ok: true,
     json: async () => body,
+  } as Response;
+}
+
+function textResponse(body: string): Response {
+  return {
+    ok: true,
+    text: async () => body,
   } as Response;
 }

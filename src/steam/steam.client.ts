@@ -137,9 +137,18 @@ export class SteamClient {
   }
 
   private async lookupVanity(vanity: string): Promise<string | null> {
+    const fromApi = await this.lookupVanityApi(vanity);
+    if (fromApi) {
+      return fromApi;
+    }
+
+    return this.lookupVanityProfile(vanity);
+  }
+
+  private async lookupVanityApi(vanity: string): Promise<string | null> {
     const apiKey = this.config.get<string>('STEAM_API_KEY')?.trim();
     if (!apiKey) {
-      this.logger.warn('STEAM_API_KEY is not set');
+      this.logger.warn('STEAM_API_KEY is not set, resolving vanity from profile page');
       return null;
     }
 
@@ -155,6 +164,34 @@ export class SteamClient {
       this.logger.warn(`Steam vanity lookup failed: ${String(error)}`);
       return null;
     }
+  }
+
+  private async lookupVanityProfile(vanity: string): Promise<string | null> {
+    const encoded = encodeURIComponent(vanity);
+    const urls = [
+      `https://steamcommunity.com/id/${encoded}/?xml=1`,
+      `https://steamcommunity.com/id/${encoded}`,
+    ];
+
+    for (const href of urls) {
+      try {
+        const response = await fetch(href, {
+          headers: { 'User-Agent': USER_AGENT },
+        });
+        if (!response.ok) {
+          continue;
+        }
+
+        const steamid = extractSteamid(await response.text());
+        if (steamid) {
+          return steamid;
+        }
+      } catch (error) {
+        this.logger.warn(`Steam profile vanity lookup failed: ${String(error)}`);
+      }
+    }
+
+    return null;
   }
 
   private async loadWishlist(steamid: string): Promise<SteamWishlistItem[]> {
@@ -256,6 +293,22 @@ export class SteamClient {
 
     return (await response.json()) as T;
   }
+}
+
+const STEAMID64 = /7656119\d{10}/;
+
+function extractSteamid(body: string): string | null {
+  const xml = body.match(/<steamID64>(7656119\d{10})<\/steamID64>/i);
+  if (xml?.[1]) {
+    return xml[1];
+  }
+
+  const quoted = body.match(/"steamid"\s*:\s*"(7656119\d{10})"/i);
+  if (quoted?.[1]) {
+    return quoted[1];
+  }
+
+  return body.match(STEAMID64)?.[0] ?? null;
 }
 
 function chunk<T>(values: T[], size: number): T[][] {

@@ -34,7 +34,7 @@ TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
 ```
 
-CheapShark works without a key. Missing GG.deals or ITAD keys skip that source instead of failing the request. `STEAM_API_KEY` is only required to resolve `steamcommunity.com/id/...` vanity URLs. Telegram delivery needs both `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`. Those Telegram variables are only used by `scripts/search.sh`, not by the HTTP API.
+CheapShark works without a key. Missing GG.deals or ITAD keys skip that source instead of failing the request. `STEAM_API_KEY` is preferred to resolve `steamcommunity.com/id/...` vanity URLs; without it Keywise falls back to the public profile page. Telegram delivery needs both `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`. Those Telegram variables are only used by `scripts/search.sh`, not by the HTTP API.
 
 ## HTTP API
 
