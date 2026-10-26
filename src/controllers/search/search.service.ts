@@ -71,11 +71,15 @@ export class SearchService {
       return pending;
     }
 
-    const request = this.fetchSources(query, region)
-      .then((result) => {
+    const request = Promise.all([
+      this.fetchSources(query, region),
+      this.loadRating(query),
+    ])
+      .then(([result, rating]) => {
         const data: SearchResponse = {
           result,
           best: pickBestOffer(result, region),
+          rating,
         };
         this.cache.set(key, {
           expiresAt: Date.now() + SEARCH_CACHE_TTL_MS,
@@ -89,6 +93,15 @@ export class SearchService {
 
     this.inflight.set(key, request);
     return request;
+  }
+
+  private async loadRating(query: string) {
+    try {
+      return await this.steam.getGameRating(query);
+    } catch (error) {
+      this.logger.warn(`Steam rating failed: ${String(error)}`);
+      return null;
+    }
   }
 
   private async loadWishlist(

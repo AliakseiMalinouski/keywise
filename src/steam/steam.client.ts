@@ -1,60 +1,34 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { normalizeTitle, titleMatchesQuery } from '../marketplaces/utils/match-title.js';
 import type { SteamIdentity } from './parse-steam-input.js';
-
-const STEAM_API = 'https://api.steampowered.com';
-const USER_AGENT = 'keywise/0.0.1 (https://github.com/AliakseiMalinouski/keywise)';
-const CACHE_TTL_MS = 5 * 60 * 1000;
-const TITLE_BATCH_SIZE = 100;
-
-export type SteamWishlistItem = {
-  appid: number;
-  title: string | null;
-};
-
-type WishlistCacheEntry = {
-  expiresAt: number;
-  items: SteamWishlistItem[];
-};
-
-type VanityCacheEntry = {
-  expiresAt: number;
-  steamid: string;
-};
-
-type TitleCacheEntry = {
-  expiresAt: number;
-  title: string;
-};
-
-type VanityResponse = {
-  response?: {
-    success?: number;
-    steamid?: string;
-  };
-};
-
-type WishlistResponse = {
-  response?: {
-    items?: Array<{
-      appid?: number;
-    }>;
-  };
-};
-
-type StoreItemsResponse = {
-  response?: {
-    store_items?: Array<{
-      appid?: number;
-      name?: string;
-    }>;
-    items?: Array<{
-      appid?: number;
-      name?: string;
-    }>;
-  };
-};
+import {
+  CACHE_TTL_MS,
+  REVIEWS_PER_PAGE,
+  STEAM_API,
+  STEAM_STORE_SEARCH,
+  TITLE_BATCH_SIZE,
+  USER_AGENT,
+} from './steam.client.const.js';
+import type {
+  AppReviewItem,
+  AppReviewsResponse,
+  AppSearchCacheEntry,
+  AppSearchResult,
+  GameRating,
+  GameRatingCacheEntry,
+  SteamReview,
+  SteamWishlistItem,
+  StoreItemsResponse,
+  StoreSearchItem,
+  StoreSearchResponse,
+  TitleCacheEntry,
+  VanityCacheEntry,
+  VanityResponse,
+  WishlistCacheEntry,
+  WishlistResponse,
+} from './steam.client.types.js';
 
 @Injectable()
 export class SteamClient {
@@ -67,8 +41,43 @@ export class SteamClient {
   private readonly vanityCache = new Map<string, VanityCacheEntry>();
   private readonly vanityInflight = new Map<string, Promise<string | null>>();
   private readonly titleCache = new Map<number, TitleCacheEntry>();
+  private readonly appSearchCache = new Map<string, AppSearchCacheEntry>();
+  private readonly appSearchInflight = new Map<
+    string,
+    Promise<AppSearchResult | null>
+  >();
+  private readonly ratingCache = new Map<string, GameRatingCacheEntry>();
+  private readonly ratingInflight = new Map<string, Promise<GameRating | null>>();
 
   constructor(private readonly config: ConfigService) {}
+
+  async getGameRating(query: string): Promise<GameRating | null> {
+    const key = query.trim().toLowerCase();
+    const cached = this.ratingCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.rating;
+    }
+
+    const pending = this.ratingInflight.get(key);
+    if (pending) {
+      return pending;
+    }
+
+    const request = this.loadGameRating(query)
+      .then((rating) => {
+        this.ratingCache.set(key, {
+          expiresAt: Date.now() + CACHE_TTL_MS,
+          rating,
+        });
+        return rating;
+      })
+      .finally(() => {
+        this.ratingInflight.delete(key);
+      });
+
+    this.ratingInflight.set(key, request);
+    return request;
+  }
 
   async resolveSteamid(identity: SteamIdentity): Promise<string | null> {
     if ('steamid' in identity) {
@@ -251,6 +260,147 @@ export class SteamClient {
     return titles;
   }
 
+  private async loadGameRating(query: string): Promise<GameRating | null> {
+    const match = await this.findAppByTitle(query);
+    if (!match) {
+      return null;
+    }
+
+    const url = new URL(`${STEAM_API}/IUserReviewsService/GetAppReviews/v1/`);
+    url.searchParams.set(
+      'input_json',
+      JSON.stringify({
+        appid: match.appid,
+        cursor: '*',
+        filter: 'Recent',
+        languages: ['all'],
+        num_per_page: REVIEWS_PER_PAGE,
+      }),
+    );
+
+    const apiKey = this.config.get<string>('STEAM_API_KEY')?.trim();
+    if (apiKey) {
+      url.searchParams.set('key', apiKey);
+    }
+
+    try {
+      const payload = await this.getJson<AppReviewsResponse>(url);
+      const summary = payload.response?.query_summary;
+      if (!summary) {
+        return null;
+      }
+
+      const reviews = (payload.response?.reviews ?? [])
+        .map((review) => this.toSteamReview(review))
+        .filter((review): review is SteamReview => review !== null);
+
+      return {
+        appid: match.appid,
+        title: match.title,
+        score: summary.review_score ?? 0,
+        scoreDescription: summary.review_score_desc?.trim() ?? '',
+        totalPositive: summary.total_positive ?? 0,
+        totalNegative: summary.total_negative ?? 0,
+        totalReviews: summary.total_reviews ?? 0,
+        reviews,
+      };
+    } catch (error) {
+      this.logger.warn(`Steam reviews failed: ${String(error)}`);
+      return null;
+    }
+  }
+
+  private async findAppByTitle(query: string): Promise<AppSearchResult | null> {
+    const key = query.trim().toLowerCase();
+    const cached = this.appSearchCache.get(key);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.match;
+    }
+
+    const pending = this.appSearchInflight.get(key);
+    if (pending) {
+      return pending;
+    }
+
+    const request = this.searchStore(query)
+      .then((match) => {
+        this.appSearchCache.set(key, {
+          expiresAt: Date.now() + CACHE_TTL_MS,
+          match,
+        });
+        return match;
+      })
+      .finally(() => {
+        this.appSearchInflight.delete(key);
+      });
+
+    this.appSearchInflight.set(key, request);
+    return request;
+  }
+
+  private async searchStore(query: string): Promise<AppSearchResult | null> {
+    const url = new URL(STEAM_STORE_SEARCH);
+    url.searchParams.set('term', query);
+    url.searchParams.set('l', 'english');
+    url.searchParams.set('cc', 'us');
+
+    try {
+      const payload = await this.getJson<StoreSearchResponse>(url);
+      const match = this.pickBestStoreItem(payload.items ?? [], query);
+      if (!match?.id || !match.name?.trim()) {
+        return null;
+      }
+
+      return { appid: match.id, title: match.name.trim() };
+    } catch (error) {
+      this.logger.warn(`Steam store search failed: ${String(error)}`);
+      return null;
+    }
+  }
+
+  private pickBestStoreItem(
+    items: StoreSearchItem[],
+    query: string,
+  ): StoreSearchItem | undefined {
+    const queryWords = normalizeTitle(query)
+      .split(' ')
+      .filter((word) => word.length > 1);
+
+    return items
+      .filter(
+        (item) =>
+          item.type === 'app' &&
+          item.id != null &&
+          titleMatchesQuery(item.name ?? '', query),
+      )
+      .sort((left, right) => {
+        const leftExtra = extraWordCount(left.name ?? '', queryWords);
+        const rightExtra = extraWordCount(right.name ?? '', queryWords);
+        if (leftExtra !== rightExtra) {
+          return leftExtra - rightExtra;
+        }
+
+        return (left.name ?? '').length - (right.name ?? '').length;
+      })[0];
+  }
+
+  private toSteamReview(review: AppReviewItem): SteamReview | null {
+    const recommendationId = review.recommendationid?.trim();
+    const text = review.review?.trim();
+    if (!recommendationId || !text) {
+      return null;
+    }
+
+    return {
+      recommendationId,
+      language: review.language?.trim() ?? '',
+      text,
+      votedUp: review.voted_up === true,
+      timestamp: review.timestamp_created ?? 0,
+      votesUp: review.votes_up ?? 0,
+    };
+  }
+
   private async fetchTitleBatch(appids: number[]): Promise<Map<number, string>> {
     const url = new URL(`${STEAM_API}/IStoreBrowseService/GetItems/v1`);
     url.searchParams.set(
@@ -309,6 +459,14 @@ function extractSteamid(body: string): string | null {
   }
 
   return body.match(STEAMID64)?.[0] ?? null;
+}
+
+function extraWordCount(title: string, queryWords: string[]): number {
+  const words = normalizeTitle(title)
+    .split(' ')
+    .filter((word) => word.length > 1);
+
+  return Math.max(0, words.length - queryWords.length);
 }
 
 function chunk<T>(values: T[], size: number): T[][] {

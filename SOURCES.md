@@ -33,6 +33,8 @@ OAuth client id is not used. Price endpoints need only the API key.
 - Site: [steampowered.com](https://store.steampowered.com/)
 - Docs: [partner.steamgames.com/doc/webapi](https://partner.steamgames.com/doc/webapi)
 - Auth: `STEAM_API_KEY` for `ISteamUser/ResolveVanityURL` when set
-- Used for: optional `/search?steam=` wishlist lookup
+- Used for: optional `/search?steam=` wishlist lookup; Steam review summary and recent reviews in `rating`
 
 A SteamID64 or `/profiles/{steamid}` URL is used as-is. A `/id/{name}` URL is resolved with the API key, or from the public Steam profile page if the key is missing. The wishlist itself comes from `IWishlistService/GetWishlist`, which does not need a key. The list is public-wishlist only; a private wishlist comes back empty. Titles are filled from `IStoreBrowseService/GetItems` when Steam returns them. The searched game is matched to a Steam App ID through CheapShark and marked `selected: true` when it is on the list.
+
+For every `/search` request, Keywise resolves the game through the public store search API (`/api/storesearch/`), then loads review summary and the latest reviews through `IUserReviewsService/GetAppReviews`. `STEAM_API_KEY` is optional but raises the rate limit when set.

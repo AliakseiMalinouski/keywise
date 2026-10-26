@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CheapSharkClient } from '../../marketplaces/clients/cheapshark.client.js';
 import { GgDealsClient } from '../../marketplaces/clients/ggdeals.client.js';
 import { ItadClient } from '../../marketplaces/clients/itad.client.js';
-import type { Offer, SearchResponse } from '../../marketplaces/types.js';
+import type { GameRating, Offer, SearchResponse } from '../../marketplaces/types.js';
 import { SteamClient } from '../../steam/index.js';
 import { SearchService } from './search.service.js';
 
@@ -37,12 +37,33 @@ const sourceResult = [
   { source: 'itad', data: [itadOffer] },
 ];
 
+const sampleRating: GameRating = {
+  appid: 1245620,
+  title: 'ELDEN RING',
+  score: 8,
+  scoreDescription: 'Very Positive',
+  totalPositive: 400_000,
+  totalNegative: 25_000,
+  totalReviews: 425_000,
+  reviews: [
+    {
+      recommendationId: '1',
+      language: 'english',
+      text: 'Great game',
+      votedUp: true,
+      timestamp: 1_700_000_000,
+      votesUp: 42,
+    },
+  ],
+};
+
 const cachedResult: SearchResponse = {
   result: sourceResult,
   best: {
     ...ggDealsOffer,
     marketplace: 'gg.deals',
   },
+  rating: sampleRating,
 };
 
 describe('SearchService', () => {
@@ -73,6 +94,7 @@ describe('SearchService', () => {
         ...ggDealsOffer,
         marketplace: 'gg.deals',
       },
+      rating: sampleRating,
     });
   });
 
@@ -270,6 +292,19 @@ describe('SearchService', () => {
     expect(getWishlist).toHaveBeenCalledTimes(2);
   });
 
+  it('returns null rating when Steam reviews fail', async () => {
+    const service = await createService({
+      getGameRating: async () => {
+        throw new Error('steam down');
+      },
+    });
+
+    await expect(service.search('elden ring', 'pl')).resolves.toEqual({
+      ...cachedResult,
+      rating: null,
+    });
+  });
+
   it('returns an empty wishlist when Steam fails after a valid profile', async () => {
     const service = await createService({
       getWishlist: async () => {
@@ -293,10 +328,12 @@ async function createService({
   itadSearch = async () => [itadOffer],
   resolveSteamid = async (identity: { steamid?: string }) =>
     identity.steamid ?? '76561198012345678',
+  getGameRating = async () => sampleRating,
   getWishlist = async () => [],
 }: {
   cheapsharkSearch?: () => Promise<Offer[]>;
   findSteamAppId?: () => Promise<string | null>;
+  getGameRating?: () => Promise<GameRating | null>;
   ggdealsSearch?: () => Promise<Offer[]>;
   itadSearch?: () => Promise<Offer[]>;
   resolveSteamid?: (identity: {
@@ -340,6 +377,7 @@ async function createService({
         useValue: {
           resolveSteamid,
           getWishlist,
+          getGameRating,
         },
       },
     ],

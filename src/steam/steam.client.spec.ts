@@ -175,6 +175,118 @@ describe('SteamClient', () => {
     ).toHaveLength(2);
   });
 
+  it('loads Steam rating by searching the store and fetching reviews', async () => {
+    const fetchMock = vi.fn(async (url: URL) => {
+      if (String(url).includes('/api/storesearch/')) {
+        expect(url.searchParams.get('term')).toBe('elden ring');
+        return jsonResponse({
+          items: [
+            { type: 'app', name: 'ELDEN RING NIGHTREIGN', id: 2622380 },
+            { type: 'app', name: 'ELDEN RING', id: 1245620 },
+          ],
+        });
+      }
+
+      if (url.pathname.includes('GetAppReviews')) {
+        const input = JSON.parse(url.searchParams.get('input_json') ?? '{}');
+        expect(input).toEqual({
+          appid: 1245620,
+          cursor: '*',
+          filter: 'Recent',
+          languages: ['all'],
+          num_per_page: 10,
+        });
+        expect(url.searchParams.get('key')).toBe('steam-key');
+
+        return jsonResponse({
+          response: {
+            query_summary: {
+              review_score: 8,
+              review_score_desc: 'Very Positive',
+              total_positive: 100,
+              total_negative: 10,
+              total_reviews: 110,
+            },
+            reviews: [
+              {
+                recommendationid: '42',
+                language: 'english',
+                review: 'Amazing',
+                voted_up: true,
+                timestamp_created: 1_700_000_000,
+                votes_up: 5,
+              },
+            ],
+          },
+        });
+      }
+
+      throw new Error(`Unexpected URL ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = createClient();
+
+    await expect(client.getGameRating('elden ring')).resolves.toEqual({
+      appid: 1245620,
+      title: 'ELDEN RING',
+      score: 8,
+      scoreDescription: 'Very Positive',
+      totalPositive: 100,
+      totalNegative: 10,
+      totalReviews: 110,
+      reviews: [
+        {
+          recommendationId: '42',
+          language: 'english',
+          text: 'Amazing',
+          votedUp: true,
+          timestamp: 1_700_000_000,
+          votesUp: 5,
+        },
+      ],
+    });
+  });
+
+  it('reuses the cached Steam rating for the same query', async () => {
+    const fetchMock = vi.fn(async (url: URL) => {
+      if (String(url).includes('/api/storesearch/')) {
+        return jsonResponse({
+          items: [{ type: 'app', name: 'ELDEN RING', id: 1245620 }],
+        });
+      }
+
+      return jsonResponse({
+        response: {
+          query_summary: {
+            review_score: 8,
+            review_score_desc: 'Very Positive',
+            total_positive: 1,
+            total_negative: 0,
+            total_reviews: 1,
+          },
+          reviews: [],
+        },
+      });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = createClient();
+    await client.getGameRating('elden ring');
+    await client.getGameRating('Elden Ring');
+
+    expect(
+      fetchMock.mock.calls.filter(([url]) =>
+        String(url).includes('/api/storesearch/'),
+      ),
+    ).toHaveLength(1);
+    expect(
+      fetchMock.mock.calls.filter(([url]) =>
+        String(url).includes('GetAppReviews'),
+      ),
+    ).toHaveLength(1);
+  });
+
   it('fetches title batches in parallel', async () => {
     const appids = Array.from({ length: 101 }, (_, index) => index + 1);
     let releaseFirst!: () => void;

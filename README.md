@@ -1,6 +1,6 @@
 # Keywise
 
-HTTP service API that compares digital game prices across several keys marketplaces, returns `{ result, best }`. An optional `steam` profile URL or SteamID64 also returns `{ wishlist }`.
+HTTP service API that compares digital game prices across several keys marketplaces, returns `{ result, best, rating }`. An optional `steam` profile URL or SteamID64 also returns `{ wishlist }`.
 
 The [frontend](https://keywise-frontend.vercel.app) calls this API from the browser. CORS is enabled. See [SOURCES.md](SOURCES.md) for APIs, keys, and regions.
 
@@ -11,7 +11,7 @@ GET /search?q=<game>&region=<code>&steam=<id-or-url>
       Marketplaces
         │
         ▼
-  { result, best, wishlist? }
+  { result, best, rating, wishlist? }
 ```
 
 ## Install
@@ -44,7 +44,7 @@ yarn start:dev
 GET /search?q=<game>&region=<code>&steam=<id-or-url>
 ```
 
-`q` is required. `region` is optional and defaults to `pl`. `steam` is optional: a SteamID64 or a `steamcommunity.com` profile URL. The response is `{ result, best }` and, when `steam` is set, `wishlist`. `result` is one block per source. `best` is the cheapest offer in the region currency (`pl` → PLN), or `null` if every source is empty. `wishlist` is the user's Steam wishlist; the searched game is marked `selected: true` when it appears there.
+`q` is required. `region` is optional and defaults to `pl`. `steam` is optional: a SteamID64 or a `steamcommunity.com` profile URL. The response is `{ result, best, rating }` and, when `steam` is set, `wishlist`. `result` is one block per source. `best` is the cheapest offer in the region currency (`pl` → PLN), or `null` if every source is empty. `rating` is Steam review data for the matched game (`null` when Steam cannot resolve it). `wishlist` is the user's Steam wishlist; the searched game is marked `selected: true` when it appears there.
 
 ```bash
 curl "http://localhost:3000/search?q=elden%20ring&region=pl"

@@ -1,3 +1,7 @@
+import type { GameRating } from '../steam/steam.client.types.js';
+
+export type { GameRating, SteamReview } from '../steam/steam.client.types.js';
+
 export type OfferPrice = {
   amount: number;
   currency: string;
@@ -29,6 +33,7 @@ export type WishlistGame = {
 export type SearchResponse = {
   result: SourceResult[];
   best: BestOffer | null;
+  rating: GameRating | null;
   wishlist?: WishlistGame[];
 };
 
