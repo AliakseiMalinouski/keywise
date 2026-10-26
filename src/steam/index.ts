@@ -1,5 +1,5 @@
-export { parseSteamInput } from './parse-steam-input.js';
-export type { SteamIdentity } from './parse-steam-input.js';
+export { parseSteamInput } from './utils/parse-steam-input.js';
+export type { SteamIdentity } from './utils/parse-steam-input.js';
 export { SteamClient } from './steam.client.js';
 export type {
   GameRating,

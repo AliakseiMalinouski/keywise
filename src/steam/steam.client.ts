@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { normalizeTitle, titleMatchesQuery } from '../marketplaces/utils/match-title.js';
-import type { SteamIdentity } from './parse-steam-input.js';
+import type { SteamIdentity } from './utils/parse-steam-input.js';
 import {
   CACHE_TTL_MS,
   REVIEWS_PER_PAGE,
