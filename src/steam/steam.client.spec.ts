@@ -306,6 +306,46 @@ describe('SteamClient', () => {
     await expect(client.getGameImage('missing game')).resolves.toBeUndefined();
   });
 
+  it('passes reviewLang filters to GetAppReviews', async () => {
+    const fetchMock = vi.fn(async (url: URL) => {
+      if (String(url).includes('/api/storesearch/')) {
+        return jsonResponse({
+          items: [{ type: 'app', name: 'ELDEN RING', id: 1245620 }],
+        });
+      }
+
+      if (url.pathname.includes('GetAppReviews')) {
+        const input = JSON.parse(url.searchParams.get('input_json') ?? '{}');
+        expect(input.languages).toEqual(['russian', 'polish']);
+
+        return jsonResponse({
+          response: {
+            query_summary: {
+              review_score: 8,
+              review_score_desc: 'Very Positive',
+              total_positive: 1,
+              total_negative: 0,
+              total_reviews: 1,
+            },
+            reviews: [],
+          },
+        });
+      }
+
+      throw new Error(`Unexpected URL ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = createClient();
+    await client.getGameRating('elden ring', ['russian', 'polish']);
+
+    expect(
+      fetchMock.mock.calls.filter(([url]) =>
+        String(url).includes('GetAppReviews'),
+      ),
+    ).toHaveLength(1);
+  });
+
   it('reuses the cached Steam rating for the same query', async () => {
     const fetchMock = vi.fn(async (url: URL) => {
       if (String(url).includes('/api/storesearch/')) {

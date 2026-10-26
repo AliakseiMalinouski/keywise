@@ -5,7 +5,7 @@ HTTP service API that compares digital game prices across several keys marketpla
 The [frontend](https://keywise-frontend.vercel.app) calls this API from the browser. CORS is enabled. See [SOURCES.md](SOURCES.md) for APIs, keys, and regions.
 
 ```
-GET /search?q=<game>&region=<code>&steam=<id-or-url>
+GET /search?q=<game>&region=<code>&steam=<id-or-url>&reviewLang=<codes>
         │
         ▼
       Marketplaces
@@ -41,13 +41,14 @@ yarn start:dev
 ```
 
 ```
-GET /search?q=<game>&region=<code>&steam=<id-or-url>
+GET /search?q=<game>&region=<code>&steam=<id-or-url>&reviewLang=<codes>
 ```
 
-`q` is required. `region` is optional and defaults to `pl`. `steam` is optional: a SteamID64 or a `steamcommunity.com` profile URL. The response is `{ result, best, rating, image? }` and, when `steam` is set, `wishlist`. `result` is one block per source. `best` is the cheapest offer in the region currency (`pl` → PLN), or `null` if every source is empty. `rating` is Steam review data for the matched game (`null` when Steam cannot resolve it). `image` is an optional cover URL from Steam store search (or the CDN header for the matched app); it is omitted when the game cannot be resolved. `wishlist` is the user's Steam wishlist; the searched game is marked `selected: true` when it appears there.
+`q` is required. `region` is optional and defaults to `pl`. `steam` is optional: a SteamID64 or a `steamcommunity.com` profile URL. `reviewLang` is optional and filters which Steam reviews are loaded into `rating.reviews` (`all` by default). Use a Steam language code (`english`, `russian`, `polish`, …) or several comma-separated codes (`english,polish`). Unknown codes are ignored; if none are valid, Keywise falls back to `all`. The response is `{ result, best, rating, image? }` and, when `steam` is set, `wishlist`. `result` is one block per source. `best` is the cheapest offer in the region currency (`pl` → PLN), or `null` if every source is empty. `rating` is Steam review data for the matched game (`null` when Steam cannot resolve it). `image` is an optional cover URL from Steam store search (or the CDN header for the matched app); it is omitted when the game cannot be resolved. `wishlist` is the user's Steam wishlist; the searched game is marked `selected: true` when it appears there.
 
 ```bash
 curl "http://localhost:3000/search?q=elden%20ring&region=pl"
+curl "http://localhost:3000/search?q=elden%20ring&region=pl&reviewLang=russian"
 curl "http://localhost:3000/search?q=elden%20ring&region=pl&steam=76561198012345678"
 ```
 

@@ -10,7 +10,11 @@ import type {
   WishlistGame,
 } from '../../marketplaces/types.js';
 import { pickBestOffer } from '../../marketplaces/utils/pick-best-offer.js';
-import { parseSteamInput, SteamClient } from '../../steam/index.js';
+import {
+  parseSteamInput,
+  reviewLanguagesCacheKey,
+  SteamClient,
+} from '../../steam/index.js';
 
 const SEARCH_CACHE_TTL_MS = 5 * 60 * 1000;
 
@@ -39,13 +43,14 @@ export class SearchService {
     query: string,
     region: string,
     steam?: string,
+    reviewLanguages: readonly string[] = ['all'],
   ): Promise<SearchResponse> {
     if (!steam) {
-      return this.searchMarketplaces(query, region);
+      return this.searchMarketplaces(query, region, reviewLanguages);
     }
 
     const [data, wishlist] = await Promise.all([
-      this.searchMarketplaces(query, region),
+      this.searchMarketplaces(query, region, reviewLanguages),
       this.loadWishlist(query, steam),
     ]);
 
@@ -58,8 +63,9 @@ export class SearchService {
   private async searchMarketplaces(
     query: string,
     region: string,
+    reviewLanguages: readonly string[],
   ): Promise<SearchResponse> {
-    const key = `${query.trim().toLowerCase()}|${region}`;
+    const key = `${query.trim().toLowerCase()}|${region}|${reviewLanguagesCacheKey(reviewLanguages)}`;
     const cached = this.cache.get(key);
 
     if (cached && cached.expiresAt > Date.now()) {
@@ -73,7 +79,7 @@ export class SearchService {
 
     const request = Promise.all([
       this.fetchSources(query, region),
-      this.loadRating(query),
+      this.loadRating(query, reviewLanguages),
       this.loadImage(query),
     ])
       .then(([result, rating, image]) => {
@@ -97,9 +103,12 @@ export class SearchService {
     return request;
   }
 
-  private async loadRating(query: string) {
+  private async loadRating(
+    query: string,
+    reviewLanguages: readonly string[],
+  ) {
     try {
-      return await this.steam.getGameRating(query);
+      return await this.steam.getGameRating(query, reviewLanguages);
     } catch (error) {
       this.logger.warn(`Steam rating failed: ${String(error)}`);
       return null;

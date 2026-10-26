@@ -3,6 +3,10 @@ import { ConfigService } from '@nestjs/config';
 
 import { normalizeTitle, titleMatchesQuery } from '../marketplaces/utils/match-title.js';
 import type { SteamIdentity } from './utils/parse-steam-input.js';
+import {
+  DEFAULT_REVIEW_LANGUAGES,
+  reviewLanguagesCacheKey,
+} from './utils/parse-review-languages.js';
 import { steamHeaderImageUrl } from './utils/steam-header-image-url.js';
 import {
   CACHE_TTL_MS,
@@ -52,8 +56,11 @@ export class SteamClient {
 
   constructor(private readonly config: ConfigService) {}
 
-  async getGameRating(query: string): Promise<GameRating | null> {
-    const key = query.trim().toLowerCase();
+  async getGameRating(
+    query: string,
+    reviewLanguages: readonly string[] = DEFAULT_REVIEW_LANGUAGES,
+  ): Promise<GameRating | null> {
+    const key = `${query.trim().toLowerCase()}|${reviewLanguagesCacheKey(reviewLanguages)}`;
     const cached = this.ratingCache.get(key);
     if (cached && cached.expiresAt > Date.now()) {
       return cached.rating;
@@ -64,7 +71,7 @@ export class SteamClient {
       return pending;
     }
 
-    const request = this.loadGameRating(query)
+    const request = this.loadGameRating(query, reviewLanguages)
       .then((rating) => {
         this.ratingCache.set(key, {
           expiresAt: Date.now() + CACHE_TTL_MS,
@@ -270,7 +277,10 @@ export class SteamClient {
     return titles;
   }
 
-  private async loadGameRating(query: string): Promise<GameRating | null> {
+  private async loadGameRating(
+    query: string,
+    reviewLanguages: readonly string[],
+  ): Promise<GameRating | null> {
     const match = await this.findAppByTitle(query);
     if (!match) {
       return null;
@@ -283,7 +293,7 @@ export class SteamClient {
         appid: match.appid,
         cursor: '*',
         filter: 'Recent',
-        languages: ['all'],
+        languages: [...reviewLanguages],
         num_per_page: REVIEWS_PER_PAGE,
       }),
     );

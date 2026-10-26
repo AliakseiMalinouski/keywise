@@ -171,6 +171,23 @@ describe('SearchService', () => {
     expect(itadSearch).toHaveBeenCalledTimes(2);
   });
 
+  it('does not reuse cache for the same query with another reviewLang', async () => {
+    const cheapsharkSearch = vi.fn(async () => [steamOffer]);
+    const getGameRating = vi.fn(async () => sampleRating);
+    const service = await createService({
+      cheapsharkSearch,
+      getGameRating,
+    });
+
+    await service.search('elden ring', 'pl', undefined, ['english']);
+    await service.search('elden ring', 'pl', undefined, ['russian']);
+
+    expect(cheapsharkSearch).toHaveBeenCalledTimes(2);
+    expect(getGameRating).toHaveBeenCalledTimes(2);
+    expect(getGameRating).toHaveBeenNthCalledWith(1, 'elden ring', ['english']);
+    expect(getGameRating).toHaveBeenNthCalledWith(2, 'elden ring', ['russian']);
+  });
+
   it('does not reuse cache for the same query in another region', async () => {
     const cheapsharkSearch = vi.fn(async () => [steamOffer]);
     const ggdealsSearch = vi.fn(async () => [ggDealsOffer]);

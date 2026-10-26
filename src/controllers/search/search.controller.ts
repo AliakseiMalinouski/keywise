@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 
 import { parseSearchRegion } from '../../marketplaces/regions.js';
+import { parseReviewLanguages } from '../../steam/index.js';
 import { SearchService } from './search.service.js';
 
 @Controller('search')
@@ -19,6 +20,7 @@ export class SearchController {
     @Query('q') query?: string,
     @Query('region') region?: string,
     @Query('steam') steam?: string,
+    @Query('reviewLang') reviewLang?: string,
   ) {
     const q = query?.trim();
 
@@ -30,6 +32,7 @@ export class SearchController {
       q,
       parseSearchRegion(region),
       steam?.trim() || undefined,
+      parseReviewLanguages(reviewLang),
     );
   }
 }
