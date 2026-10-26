@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 
 import { normalizeTitle, titleMatchesQuery } from '../marketplaces/utils/match-title.js';
 import type { SteamIdentity } from './utils/parse-steam-input.js';
+import { steamHeaderImageUrl } from './utils/steam-header-image-url.js';
 import {
   CACHE_TTL_MS,
   REVIEWS_PER_PAGE,
@@ -77,6 +78,15 @@ export class SteamClient {
 
     this.ratingInflight.set(key, request);
     return request;
+  }
+
+  async getGameImage(query: string): Promise<string | undefined> {
+    const match = await this.findAppByTitle(query);
+    if (!match) {
+      return undefined;
+    }
+
+    return match.image ?? steamHeaderImageUrl(match.appid);
   }
 
   async resolveSteamid(identity: SteamIdentity): Promise<string | null> {
@@ -351,7 +361,12 @@ export class SteamClient {
         return null;
       }
 
-      return { appid: match.id, title: match.name.trim() };
+      const image = match.tiny_image?.trim();
+      return {
+        appid: match.id,
+        title: match.name.trim(),
+        ...(image ? { image } : {}),
+      };
     } catch (error) {
       this.logger.warn(`Steam store search failed: ${String(error)}`);
       return null;

@@ -57,6 +57,9 @@ const sampleRating: GameRating = {
   ],
 };
 
+const sampleImage =
+  'https://cdn.akamai.steamstatic.com/steam/apps/1245620/header.jpg';
+
 const cachedResult: SearchResponse = {
   result: sourceResult,
   best: {
@@ -64,6 +67,7 @@ const cachedResult: SearchResponse = {
     marketplace: 'gg.deals',
   },
   rating: sampleRating,
+  image: sampleImage,
 };
 
 describe('SearchService', () => {
@@ -95,6 +99,7 @@ describe('SearchService', () => {
         marketplace: 'gg.deals',
       },
       rating: sampleRating,
+      image: sampleImage,
     });
   });
 
@@ -329,10 +334,12 @@ async function createService({
   resolveSteamid = async (identity: { steamid?: string }) =>
     identity.steamid ?? '76561198012345678',
   getGameRating = async () => sampleRating,
+  getGameImage = async () => sampleImage,
   getWishlist = async () => [],
 }: {
   cheapsharkSearch?: () => Promise<Offer[]>;
   findSteamAppId?: () => Promise<string | null>;
+  getGameImage?: () => Promise<string | undefined>;
   getGameRating?: () => Promise<GameRating | null>;
   ggdealsSearch?: () => Promise<Offer[]>;
   itadSearch?: () => Promise<Offer[]>;
@@ -378,6 +385,7 @@ async function createService({
           resolveSteamid,
           getWishlist,
           getGameRating,
+          getGameImage,
         },
       },
     ],

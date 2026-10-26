@@ -70,6 +70,7 @@ export type StoreSearchItem = {
   type?: string;
   name?: string;
   id?: number;
+  tiny_image?: string;
 };
 
 export type StoreSearchResponse = {
@@ -79,6 +80,7 @@ export type StoreSearchResponse = {
 export type AppSearchResult = {
   appid: number;
   title: string;
+  image?: string;
 };
 
 export type AppSearchCacheEntry = {

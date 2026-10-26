@@ -248,6 +248,64 @@ describe('SteamClient', () => {
     });
   });
 
+  it('returns a store tiny_image or the CDN header for getGameImage', async () => {
+    const fetchMock = vi.fn(async (url: URL) => {
+      if (String(url).includes('/api/storesearch/')) {
+        return jsonResponse({
+          items: [
+            {
+              type: 'app',
+              name: 'ELDEN RING',
+              id: 1245620,
+              tiny_image: 'https://cdn.example/231x87.jpg',
+            },
+          ],
+        });
+      }
+
+      throw new Error(`Unexpected URL ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = createClient();
+
+    await expect(client.getGameImage('elden ring')).resolves.toBe(
+      'https://cdn.example/231x87.jpg',
+    );
+  });
+
+  it('falls back to the CDN header when store search has no tiny_image', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: URL) => {
+        if (String(url).includes('/api/storesearch/')) {
+          return jsonResponse({
+            items: [{ type: 'app', name: 'ELDEN RING', id: 1245620 }],
+          });
+        }
+
+        throw new Error(`Unexpected URL ${url}`);
+      }),
+    );
+
+    const client = createClient();
+
+    await expect(client.getGameImage('elden ring')).resolves.toBe(
+      'https://cdn.akamai.steamstatic.com/steam/apps/1245620/header.jpg',
+    );
+  });
+
+  it('returns undefined for getGameImage when the game is not found', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({ items: [] })),
+    );
+
+    const client = createClient();
+
+    await expect(client.getGameImage('missing game')).resolves.toBeUndefined();
+  });
+
   it('reuses the cached Steam rating for the same query', async () => {
     const fetchMock = vi.fn(async (url: URL) => {
       if (String(url).includes('/api/storesearch/')) {

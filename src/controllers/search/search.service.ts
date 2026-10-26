@@ -74,12 +74,14 @@ export class SearchService {
     const request = Promise.all([
       this.fetchSources(query, region),
       this.loadRating(query),
+      this.loadImage(query),
     ])
-      .then(([result, rating]) => {
+      .then(([result, rating, image]) => {
         const data: SearchResponse = {
           result,
           best: pickBestOffer(result, region),
           rating,
+          ...(image ? { image } : {}),
         };
         this.cache.set(key, {
           expiresAt: Date.now() + SEARCH_CACHE_TTL_MS,
@@ -101,6 +103,15 @@ export class SearchService {
     } catch (error) {
       this.logger.warn(`Steam rating failed: ${String(error)}`);
       return null;
+    }
+  }
+
+  private async loadImage(query: string): Promise<string | undefined> {
+    try {
+      return await this.steam.getGameImage(query);
+    } catch (error) {
+      this.logger.warn(`Steam image failed: ${String(error)}`);
+      return undefined;
     }
   }
 
