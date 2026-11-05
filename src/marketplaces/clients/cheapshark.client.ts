@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import type { MarketplaceClient, Offer, SearchOptions } from '../types.js';
+import { OFFERS_PER_SOURCE_LIMIT } from '../limits.js';
 import { normalizeTitle, titleMatchesQuery } from '../utils/match-title.js';
 
 const CHEAPSHARK_API = 'https://www.cheapshark.com/api/1.0';
@@ -72,7 +73,8 @@ export class CheapSharkClient implements MarketplaceClient {
       return (details.deals ?? [])
         .map((deal) => this.toOffer(deal, title, stores))
         .filter((offer): offer is Offer => offer !== null)
-        .sort((left, right) => left.price.amount - right.price.amount);
+        .sort((left, right) => left.price.amount - right.price.amount)
+        .slice(0, OFFERS_PER_SOURCE_LIMIT);
     } catch (error) {
       this.logger.warn(`CheapShark search failed: ${String(error)}`);
       return [];

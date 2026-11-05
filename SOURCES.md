@@ -7,6 +7,7 @@
 - Auth: none
 - Region: USD / US storefronts only; `region` is ignored
 - Used for: title search, official-store deals, Steam App ID for GG.deals
+- Offer cap: up to 24 cheapest deals per source (see `OFFERS_PER_SOURCE_LIMIT`)
 
 ## GG.deals
 
@@ -25,6 +26,7 @@ GG.deals does not search by title. Keywise resolves the Steam App ID through Che
 - Auth: `IS_THERE_ANY_DEAL_API_KEY` ([register an app](https://isthereanydeal.com/apps/))
 - Region: query `region` mapped to an ISO country (`pl` → `PL`, `eu` → `DE`)
 - Used for: title search and per-shop prices (`/games/search/v1`, `/games/prices/v3`)
+- Offer cap: up to 24 cheapest deals per source (see `OFFERS_PER_SOURCE_LIMIT`)
 
 OAuth client id is not used. Price endpoints need only the API key.
 

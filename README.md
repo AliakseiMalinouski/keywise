@@ -2,7 +2,7 @@
 
 HTTP service API that compares digital game prices across several keys marketplaces, returns `{ result, best, rating, image? }`. An optional `steam` profile URL or SteamID64 also returns `{ wishlist }`.
 
-The [frontend](https://keywise-frontend.vercel.app) calls this API from the browser. CORS is enabled. See [SOURCES.md](SOURCES.md) for APIs, keys, and regions.
+The [frontend](https://www.keywise.online/) calls this API from the browser. CORS is enabled. See [SOURCES.md](SOURCES.md) for APIs, keys, and regions.
 
 ```
 GET /search?q=<game>&region=<code>&steam=<id-or-url>&reviewLang=<codes>

@@ -2,12 +2,12 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { DEFAULT_SEARCH_REGION, toItadCountry } from '../regions.js';
+import { OFFERS_PER_SOURCE_LIMIT } from '../limits.js';
 import type { MarketplaceClient, Offer, SearchOptions } from '../types.js';
 import { normalizeTitle, titleMatchesQuery } from '../utils/match-title.js';
 
 const ITAD_API = 'https://api.isthereanydeal.com';
 const USER_AGENT = 'keywise/0.0.1 (https://github.com/AliakseiMalinouski/keywise)';
-const OFFER_LIMIT = 8;
 
 type ItadSearchGame = {
   id?: string;
@@ -72,7 +72,7 @@ export class ItadClient implements MarketplaceClient {
         .map((deal) => this.toOffer(deal, title, fallbackUrl, options.region))
         .filter((offer): offer is Offer => offer !== null)
         .sort((left, right) => left.price.amount - right.price.amount)
-        .slice(0, OFFER_LIMIT);
+        .slice(0, OFFERS_PER_SOURCE_LIMIT);
     } catch (error) {
       this.logger.warn(`ITAD search failed: ${String(error)}`);
       return [];
