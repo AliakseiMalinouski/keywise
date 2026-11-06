@@ -7,7 +7,7 @@ import {
   DEFAULT_REVIEW_LANGUAGES,
   reviewLanguagesCacheKey,
 } from './utils/parse-review-languages.js';
-import { steamHeaderImageUrl } from './utils/steam-header-image-url.js';
+import { steamLibraryHeroUrl } from './utils/steam-header-image-url.js';
 import {
   CACHE_TTL_MS,
   REVIEWS_PER_PAGE,
@@ -93,7 +93,7 @@ export class SteamClient {
       return undefined;
     }
 
-    return match.image ?? steamHeaderImageUrl(match.appid);
+    return steamLibraryHeroUrl(match.appid);
   }
 
   async resolveSteamid(identity: SteamIdentity): Promise<string | null> {
@@ -371,13 +371,9 @@ export class SteamClient {
         return null;
       }
 
-      const image = match.tiny_image
-        ?.trim()
-        .replace('capsule_231x87', 'capsule_467x181');
       return {
         appid: match.id,
         title: match.name.trim(),
-        ...(image ? { image } : {}),
       };
     } catch (error) {
       this.logger.warn(`Steam store search failed: ${String(error)}`);
