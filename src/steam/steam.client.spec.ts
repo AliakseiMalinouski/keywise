@@ -248,7 +248,7 @@ describe('SteamClient', () => {
     });
   });
 
-  it('returns a store tiny_image or the CDN header for getGameImage', async () => {
+  it('returns a larger store capsule or the CDN header for getGameImage', async () => {
     const fetchMock = vi.fn(async (url: URL) => {
       if (String(url).includes('/api/storesearch/')) {
         return jsonResponse({
@@ -257,7 +257,8 @@ describe('SteamClient', () => {
               type: 'app',
               name: 'ELDEN RING',
               id: 1245620,
-              tiny_image: 'https://cdn.example/231x87.jpg',
+              tiny_image:
+                'https://cdn.example/steam/apps/1245620/capsule_231x87.jpg',
             },
           ],
         });
@@ -270,7 +271,7 @@ describe('SteamClient', () => {
     const client = createClient();
 
     await expect(client.getGameImage('elden ring')).resolves.toBe(
-      'https://cdn.example/231x87.jpg',
+      'https://cdn.example/steam/apps/1245620/capsule_467x181.jpg',
     );
   });
 

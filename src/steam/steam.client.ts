@@ -371,7 +371,9 @@ export class SteamClient {
         return null;
       }
 
-      const image = match.tiny_image?.trim();
+      const image = match.tiny_image
+        ?.trim()
+        .replace('capsule_231x87', 'capsule_467x181');
       return {
         appid: match.id,
         title: match.name.trim(),
