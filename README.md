@@ -18,7 +18,7 @@ GET /search?q=<game>&region=<code>&steam=<id-or-url>&reviewLang=<codes>
 
 The response is `{ result, best, rating, image? }`. When `steam` is set, it also includes `wishlist`.
 
-`result` is one block per marketplace. A source that cannot be queried is left out of `result`; the rest of the search still returns. `best` is the cheapest offer among the returned blocks, priced in the region currency (`pl` → PLN), or `null` when every source is empty. CheapShark prices stay in USD and ignore `region`. GG.deals and IsThereAnyDeal follow the requested storefront (`eu` is priced as Germany).
+`result` is one block per marketplace. A source that cannot be queried is left out of `result`; the rest of the search still returns. `best` is the cheapest offer among the returned blocks, priced in the region currency (`pl` → PLN), or `null` when every source is empty. When Steam resolves the game, `best.image` is its library hero. CheapShark prices stay in USD and ignore `region`. GG.deals and IsThereAnyDeal follow the requested storefront (`eu` is priced as Germany).
 
 `rating` is the Steam review summary and recent reviews for the matched game, or `null` when Steam cannot resolve the title. `image` is a Steam store capsule for that game. It is omitted when the game cannot be resolved. `wishlist` is the profile's public Steam wishlist. A private wishlist, an invalid `steam` value, or a profile Steam cannot resolve comes back as an empty list. The searched game is marked `selected: true` when it is on the list.
 

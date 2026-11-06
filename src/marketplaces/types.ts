@@ -22,6 +22,7 @@ export type SourceResult<T = Offer[]> = {
 
 export type BestOffer = Offer & {
   marketplace: string;
+  image?: string;
 };
 
 export type WishlistGame = {

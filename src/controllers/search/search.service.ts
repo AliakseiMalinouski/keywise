@@ -81,11 +81,14 @@ export class SearchService {
       this.fetchSources(query, region),
       this.loadRating(query, reviewLanguages),
       this.loadImage(query),
+      this.loadLibraryHero(query),
     ])
-      .then(([result, rating, image]) => {
+      .then(([result, rating, image, libraryHero]) => {
+        const best = pickBestOffer(result, region);
         const data: SearchResponse = {
           result,
-          best: pickBestOffer(result, region),
+          best:
+            best && libraryHero ? { ...best, image: libraryHero } : best,
           rating,
           ...(image ? { image } : {}),
         };
@@ -120,6 +123,15 @@ export class SearchService {
       return await this.steam.getGameImage(query);
     } catch (error) {
       this.logger.warn(`Steam image failed: ${String(error)}`);
+      return undefined;
+    }
+  }
+
+  private async loadLibraryHero(query: string): Promise<string | undefined> {
+    try {
+      return await this.steam.getLibraryHero(query);
+    } catch (error) {
+      this.logger.warn(`Steam library hero failed: ${String(error)}`);
       return undefined;
     }
   }

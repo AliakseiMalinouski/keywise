@@ -7,7 +7,10 @@ import {
   DEFAULT_REVIEW_LANGUAGES,
   reviewLanguagesCacheKey,
 } from './utils/parse-review-languages.js';
-import { steamHeaderImageUrl } from './utils/steam-header-image-url.js';
+import {
+  steamHeaderImageUrl,
+  steamLibraryHeroUrl,
+} from './utils/steam-header-image-url.js';
 import {
   CACHE_TTL_MS,
   REVIEWS_PER_PAGE,
@@ -94,6 +97,15 @@ export class SteamClient {
     }
 
     return match.image ?? steamHeaderImageUrl(match.appid);
+  }
+
+  async getLibraryHero(query: string): Promise<string | undefined> {
+    const match = await this.findAppByTitle(query);
+    if (!match) {
+      return undefined;
+    }
+
+    return steamLibraryHeroUrl(match.appid);
   }
 
   async resolveSteamid(identity: SteamIdentity): Promise<string | null> {

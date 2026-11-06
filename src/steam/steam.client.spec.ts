@@ -306,6 +306,38 @@ describe('SteamClient', () => {
     await expect(client.getGameImage('missing game')).resolves.toBeUndefined();
   });
 
+  it('returns the CDN library hero for the matched app', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: URL) => {
+        if (String(url).includes('/api/storesearch/')) {
+          return jsonResponse({
+            items: [{ type: 'app', name: 'ELDEN RING', id: 1245620 }],
+          });
+        }
+
+        throw new Error(`Unexpected URL ${url}`);
+      }),
+    );
+
+    const client = createClient();
+
+    await expect(client.getLibraryHero('elden ring')).resolves.toBe(
+      'https://cdn.akamai.steamstatic.com/steam/apps/1245620/library_hero.jpg',
+    );
+  });
+
+  it('returns undefined for getLibraryHero when the game is not found', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => jsonResponse({ items: [] })),
+    );
+
+    const client = createClient();
+
+    await expect(client.getLibraryHero('missing game')).resolves.toBeUndefined();
+  });
+
   it('passes reviewLang filters to GetAppReviews', async () => {
     const fetchMock = vi.fn(async (url: URL) => {
       if (String(url).includes('/api/storesearch/')) {
