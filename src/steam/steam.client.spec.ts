@@ -248,7 +248,7 @@ describe('SteamClient', () => {
     });
   });
 
-  it('returns the CDN library hero for getGameImage', async () => {
+  it('returns a store tiny_image or the CDN header for getGameImage', async () => {
     const fetchMock = vi.fn(async (url: URL) => {
       if (String(url).includes('/api/storesearch/')) {
         return jsonResponse({
@@ -257,8 +257,7 @@ describe('SteamClient', () => {
               type: 'app',
               name: 'ELDEN RING',
               id: 1245620,
-              tiny_image:
-                'https://cdn.example/steam/apps/1245620/capsule_231x87.jpg',
+              tiny_image: 'https://cdn.example/231x87.jpg',
             },
           ],
         });
@@ -271,11 +270,11 @@ describe('SteamClient', () => {
     const client = createClient();
 
     await expect(client.getGameImage('elden ring')).resolves.toBe(
-      'https://cdn.akamai.steamstatic.com/steam/apps/1245620/library_hero.jpg',
+      'https://cdn.example/231x87.jpg',
     );
   });
 
-  it('returns the CDN library hero when store search has no tiny_image', async () => {
+  it('falls back to the CDN header when store search has no tiny_image', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: URL) => {
@@ -292,7 +291,7 @@ describe('SteamClient', () => {
     const client = createClient();
 
     await expect(client.getGameImage('elden ring')).resolves.toBe(
-      'https://cdn.akamai.steamstatic.com/steam/apps/1245620/library_hero.jpg',
+      'https://cdn.akamai.steamstatic.com/steam/apps/1245620/header.jpg',
     );
   });
 
