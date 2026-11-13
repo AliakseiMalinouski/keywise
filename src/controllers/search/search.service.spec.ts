@@ -4,7 +4,12 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CheapSharkClient } from '../../marketplaces/clients/cheapshark.client.js';
 import { GgDealsClient } from '../../marketplaces/clients/ggdeals.client.js';
 import { ItadClient } from '../../marketplaces/clients/itad.client.js';
-import type { GameRating, Offer, SearchResponse } from '../../marketplaces/types.js';
+import type {
+  GameRating,
+  GameRequirements,
+  Offer,
+  SearchResponse,
+} from '../../marketplaces/types.js';
 import { SteamClient } from '../../steam/index.js';
 import { SearchService } from './search.service.js';
 
@@ -63,6 +68,14 @@ const sampleImage =
 const sampleLibraryHero =
   'https://cdn.akamai.steamstatic.com/steam/apps/1245620/library_hero.jpg';
 
+const sampleRequirements: GameRequirements = {
+  appid: 1245620,
+  pc: {
+    minimum: '<strong>Minimum:</strong><br>64-bit OS',
+    recommended: '<strong>Recommended:</strong><br>64-bit OS',
+  },
+};
+
 const cachedResult: SearchResponse = {
   result: sourceResult,
   best: {
@@ -71,6 +84,7 @@ const cachedResult: SearchResponse = {
     image: sampleLibraryHero,
   },
   rating: sampleRating,
+  requirements: sampleRequirements,
   image: sampleImage,
 };
 
@@ -104,6 +118,7 @@ describe('SearchService', () => {
         image: sampleLibraryHero,
       },
       rating: sampleRating,
+      requirements: sampleRequirements,
       image: sampleImage,
     });
   });
@@ -332,6 +347,19 @@ describe('SearchService', () => {
     });
   });
 
+  it('returns null requirements when Steam app details fail', async () => {
+    const service = await createService({
+      getGameRequirements: async () => {
+        throw new Error('steam down');
+      },
+    });
+
+    await expect(service.search('elden ring', 'pl')).resolves.toEqual({
+      ...cachedResult,
+      requirements: null,
+    });
+  });
+
   it('returns an empty wishlist when Steam fails after a valid profile', async () => {
     const service = await createService({
       getWishlist: async () => {
@@ -356,6 +384,7 @@ async function createService({
   resolveSteamid = async (identity: { steamid?: string }) =>
     identity.steamid ?? '76561198012345678',
   getGameRating = async () => sampleRating,
+  getGameRequirements = async () => sampleRequirements,
   getGameImage = async () => sampleImage,
   getLibraryHero = async () => sampleLibraryHero,
   getWishlist = async () => [],
@@ -365,6 +394,7 @@ async function createService({
   getGameImage?: () => Promise<string | undefined>;
   getLibraryHero?: () => Promise<string | undefined>;
   getGameRating?: () => Promise<GameRating | null>;
+  getGameRequirements?: () => Promise<GameRequirements | null>;
   ggdealsSearch?: () => Promise<Offer[]>;
   itadSearch?: () => Promise<Offer[]>;
   resolveSteamid?: (identity: {
@@ -409,6 +439,7 @@ async function createService({
           resolveSteamid,
           getWishlist,
           getGameRating,
+          getGameRequirements,
           getGameImage,
           getLibraryHero,
         },

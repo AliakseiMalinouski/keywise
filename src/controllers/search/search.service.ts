@@ -80,16 +80,18 @@ export class SearchService {
     const request = Promise.all([
       this.fetchSources(query, region),
       this.loadRating(query, reviewLanguages),
+      this.loadRequirements(query),
       this.loadImage(query),
       this.loadLibraryHero(query),
     ])
-      .then(([result, rating, image, libraryHero]) => {
+      .then(([result, rating, requirements, image, libraryHero]) => {
         const best = pickBestOffer(result, region);
         const data: SearchResponse = {
           result,
           best:
             best && libraryHero ? { ...best, image: libraryHero } : best,
           rating,
+          requirements,
           ...(image ? { image } : {}),
         };
         this.cache.set(key, {
@@ -114,6 +116,15 @@ export class SearchService {
       return await this.steam.getGameRating(query, reviewLanguages);
     } catch (error) {
       this.logger.warn(`Steam rating failed: ${String(error)}`);
+      return null;
+    }
+  }
+
+  private async loadRequirements(query: string) {
+    try {
+      return await this.steam.getGameRequirements(query);
+    } catch (error) {
+      this.logger.warn(`Steam requirements failed: ${String(error)}`);
       return null;
     }
   }

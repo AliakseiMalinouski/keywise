@@ -23,6 +23,18 @@ export type GameRating = {
   reviews: SteamReview[];
 };
 
+export type PlatformRequirements = {
+  minimum?: string;
+  recommended?: string;
+};
+
+export type GameRequirements = {
+  appid: number;
+  pc?: PlatformRequirements;
+  mac?: PlatformRequirements;
+  linux?: PlatformRequirements;
+};
+
 export type WishlistCacheEntry = {
   expiresAt: number;
   items: SteamWishlistItem[];
@@ -92,6 +104,30 @@ export type GameRatingCacheEntry = {
   expiresAt: number;
   rating: GameRating | null;
 };
+
+export type RequirementsCacheEntry = {
+  expiresAt: number;
+  requirements: GameRequirements | null;
+};
+
+export type AppDetailsRequirementBlock = {
+  minimum?: string;
+  recommended?: string;
+};
+
+export type AppDetailsData = {
+  pc_requirements?: AppDetailsRequirementBlock;
+  mac_requirements?: AppDetailsRequirementBlock;
+  linux_requirements?: AppDetailsRequirementBlock;
+};
+
+export type AppDetailsResponse = Record<
+  string,
+  {
+    success?: boolean;
+    data?: AppDetailsData;
+  }
+>;
 
 export type AppReviewItem = {
   recommendationid?: string;

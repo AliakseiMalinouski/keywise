@@ -306,6 +306,79 @@ describe('SteamClient', () => {
     await expect(client.getGameImage('missing game')).resolves.toBeUndefined();
   });
 
+  it('loads PC requirements from Steam app details by app id', async () => {
+    const fetchMock = vi.fn(async (url: URL) => {
+      if (String(url).includes('/api/appdetails')) {
+        expect(url.searchParams.get('appids')).toBe('1245620');
+        return jsonResponse({
+          '1245620': {
+            success: true,
+            data: {
+              pc_requirements: {
+                minimum: '<strong>Minimum:</strong> Windows 10',
+                recommended: '<strong>Recommended:</strong> Windows 11',
+              },
+            },
+          },
+        });
+      }
+
+      throw new Error(`Unexpected URL ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = createClient();
+
+    await expect(client.getRequirementsByAppId(1245620)).resolves.toEqual({
+      appid: 1245620,
+      pc: {
+        minimum: '<strong>Minimum:</strong> Windows 10',
+        recommended: '<strong>Recommended:</strong> Windows 11',
+      },
+    });
+    await expect(client.getRequirementsByAppId(1245620)).resolves.toEqual({
+      appid: 1245620,
+      pc: {
+        minimum: '<strong>Minimum:</strong> Windows 10',
+        recommended: '<strong>Recommended:</strong> Windows 11',
+      },
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('resolves a game by title before loading requirements', async () => {
+    const fetchMock = vi.fn(async (url: URL) => {
+      if (String(url).includes('/api/storesearch/')) {
+        return jsonResponse({
+          items: [{ type: 'app', name: 'ELDEN RING', id: 1245620 }],
+        });
+      }
+
+      if (String(url).includes('/api/appdetails')) {
+        return jsonResponse({
+          '1245620': {
+            success: true,
+            data: {
+              pc_requirements: {
+                minimum: '64-bit CPU',
+              },
+            },
+          },
+        });
+      }
+
+      throw new Error(`Unexpected URL ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const client = createClient();
+
+    await expect(client.getGameRequirements('elden ring')).resolves.toEqual({
+      appid: 1245620,
+      pc: { minimum: '64-bit CPU' },
+    });
+  });
+
   it('returns the CDN library hero for the matched app', async () => {
     vi.stubGlobal(
       'fetch',

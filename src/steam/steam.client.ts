@@ -15,17 +15,23 @@ import {
   CACHE_TTL_MS,
   REVIEWS_PER_PAGE,
   STEAM_API,
+  STEAM_APP_DETAILS,
   STEAM_STORE_SEARCH,
   TITLE_BATCH_SIZE,
   USER_AGENT,
 } from './steam.client.const.js';
 import type {
+  AppDetailsRequirementBlock,
+  AppDetailsResponse,
   AppReviewItem,
   AppReviewsResponse,
   AppSearchCacheEntry,
   AppSearchResult,
   GameRating,
   GameRatingCacheEntry,
+  GameRequirements,
+  PlatformRequirements,
+  RequirementsCacheEntry,
   SteamReview,
   SteamWishlistItem,
   StoreItemsResponse,
@@ -56,8 +62,49 @@ export class SteamClient {
   >();
   private readonly ratingCache = new Map<string, GameRatingCacheEntry>();
   private readonly ratingInflight = new Map<string, Promise<GameRating | null>>();
+  private readonly requirementsCache = new Map<number, RequirementsCacheEntry>();
+  private readonly requirementsInflight = new Map<
+    number,
+    Promise<GameRequirements | null>
+  >();
 
   constructor(private readonly config: ConfigService) {}
+
+  async getGameRequirements(query: string): Promise<GameRequirements | null> {
+    const match = await this.findAppByTitle(query);
+    if (!match) {
+      return null;
+    }
+
+    return this.getRequirementsByAppId(match.appid);
+  }
+
+  async getRequirementsByAppId(appid: number): Promise<GameRequirements | null> {
+    const cached = this.requirementsCache.get(appid);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.requirements;
+    }
+
+    const pending = this.requirementsInflight.get(appid);
+    if (pending) {
+      return pending;
+    }
+
+    const request = this.fetchAppRequirements(appid)
+      .then((requirements) => {
+        this.requirementsCache.set(appid, {
+          expiresAt: Date.now() + CACHE_TTL_MS,
+          requirements,
+        });
+        return requirements;
+      })
+      .finally(() => {
+        this.requirementsInflight.delete(appid);
+      });
+
+    this.requirementsInflight.set(appid, request);
+    return request;
+  }
 
   async getGameRating(
     query: string,
@@ -289,6 +336,36 @@ export class SteamClient {
     return titles;
   }
 
+  private async fetchAppRequirements(
+    appid: number,
+  ): Promise<GameRequirements | null> {
+    const url = new URL(STEAM_APP_DETAILS);
+    url.searchParams.set('appids', String(appid));
+    url.searchParams.set('l', 'english');
+
+    try {
+      const payload = await this.getJson<AppDetailsResponse>(url);
+      const entry = payload[String(appid)];
+      if (!entry?.success || !entry.data) {
+        return null;
+      }
+
+      const pc = toPlatformRequirements(entry.data.pc_requirements);
+      const mac = toPlatformRequirements(entry.data.mac_requirements);
+      const linux = toPlatformRequirements(entry.data.linux_requirements);
+
+      return {
+        appid,
+        ...(pc ? { pc } : {}),
+        ...(mac ? { mac } : {}),
+        ...(linux ? { linux } : {}),
+      };
+    } catch (error) {
+      this.logger.warn(`Steam app details failed: ${String(error)}`);
+      return null;
+    }
+  }
+
   private async loadGameRating(
     query: string,
     reviewLanguages: readonly string[],
@@ -514,4 +591,23 @@ function chunk<T>(values: T[], size: number): T[][] {
   }
 
   return batches;
+}
+
+function toPlatformRequirements(
+  block?: AppDetailsRequirementBlock,
+): PlatformRequirements | undefined {
+  if (!block) {
+    return undefined;
+  }
+
+  const minimum = block.minimum?.trim();
+  const recommended = block.recommended?.trim();
+  if (!minimum && !recommended) {
+    return undefined;
+  }
+
+  return {
+    ...(minimum ? { minimum } : {}),
+    ...(recommended ? { recommended } : {}),
+  };
 }
